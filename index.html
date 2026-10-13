@@ -1,4 +1,4 @@
-<!doctype html><html lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="حرب السفن 2000 - لعبة معركة السفن بأسلوب ألعاب الألفين، العب ضد الكمبيوتر أو صديقك أونلاين"><style>[hidden]{display:none!important}body{margin:0}</style></head><body><title>حرب السفن 2000</title>
+<!doctype html><html lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="description" content="حرب السفن 2000 - لعبة معركة السفن بأسلوب ألعاب الألفين، العب ضد الكمبيوتر أو صديقك أونلاين"><style>[hidden]{display:none!important}body{margin:0}</style></head><body><title>حرب السفن 2000</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&family=Lalezar&family=Russo+One&display=swap">
 <style>
@@ -95,7 +95,24 @@ input:focus{outline:2px solid var(--amber)}
 #tip{position:fixed;padding:2px 10px;background:#000c1ddd;border:1.5px solid #64d8ffcc;font-weight:700;pointer-events:none;direction:rtl}
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:#0b1622;font:400 32px var(--f-display);color:var(--amber);z-index:5}
 
+#bSpy{position:absolute;top:14px;left:14px;width:34px;height:34px;padding:0;border-radius:50%;font-size:14px;color:#ffd0c8;
+  background:radial-gradient(circle at 35% 30%,#ff8a7a,#b3140a 60%,#4a0603);border:2px solid #2a0402;box-shadow:0 0 0 2px #0006,2px 2px 0 #0007}
+#bSpy.on{box-shadow:0 0 12px 3px #ff3b2b,0 0 0 2px #0006}
+#bView{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:15px;padding:6px 14px}
+@media (max-height:520px) and (min-width:761px){
+  #placePanel{top:8px;bottom:8px;right:8px;width:300px;overflow:auto;padding:10px}#placePanel .hdr{font-size:18px;margin-bottom:6px}
+  #shipList button{padding:5px 10px;font-size:14px}#placePanel .dim{display:none}
+  .fleet{width:210px;bottom:8px;padding:8px 10px}.fleet .hdr{font-size:15px;margin-bottom:4px}.fleet li{font-size:12px}.pips i{width:10px;height:10px}
+  #stats{bottom:6px;font-size:12px;padding:3px 10px}#hint{display:none}#banner{font-size:15px;padding:6px 10px;top:6px}
+  #menuPanel{top:auto;bottom:8px;width:min(560px,calc(100vw - 32px))}#menuPanel button{font-size:16px;padding:5px 10px}
+  .chrome{font-size:clamp(48px,17vh,90px)}.chrome.latin{font-size:clamp(22px,7vh,40px)}
+  #lobbyPanel{max-height:calc(100vh - 16px);overflow:auto}#overPanel{top:8px}#overTitle{font-size:48px}
+}
 @media (max-width:760px){
+  #msg{font-size:clamp(20px,6.4vw,30px);top:12%;padding-inline:12px}
+  #bSpy{top:66px;left:12px}
+  #menuPanel{top:auto;bottom:40px}#overTitle{font-size:56px}
+  #lobbyPanel{max-height:calc(100vh - 24px);overflow:auto}#lobbyPanel ol{font-size:13px}
   #placePanel{left:12px;right:12px;width:auto;top:auto;bottom:12px;max-height:46vh;overflow:auto;padding:12px}
   #placePanel .hdr{font-size:20px;margin-bottom:8px}
   #shipList{display:grid;grid-template-columns:1fr 1fr;gap:6px}#shipList button{padding:6px 8px;font-size:14px}
@@ -159,6 +176,8 @@ input:focus{outline:2px solid var(--amber)}
 
   <section class="screen" id="s-battle" hidden>
     <div class="panel" id="banner"></div>
+    <button id="bSpy" hidden title="">●</button>
+    <button id="bView" hidden>شبكتي</button>
     <div class="panel fleet" id="fleetMe"><div class="hdr">أسطولك</div><ul></ul></div>
     <div class="panel fleet" id="fleetFoe"><div class="hdr">أسطول العدو</div><ul></ul></div>
     <div id="stats"></div>
@@ -511,6 +530,7 @@ scene.add(isl);
 // ships: one mesh per board and kind (each fleet has one of each)
 const shipGeo = [PLAYER, ENEMY].map(p => SHIP_FN.map(f => f(p).geo()));
 const shipMesh = [0, 1].map(b => shipGeo[b].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, shininess: 30, specular: 0x5a5a5a, side: T.DoubleSide })); m.visible = false; scene.add(m); return m; }));
+const spy = shipGeo[1].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: .55, depthWrite: false, color: 0xff6050, emissive: 0x401008, side: T.DoubleSide })); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
 const ghost = shipGeo[0].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: .6, depthWrite: false, side: T.DoubleSide })); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
 const pegs = [[.95, .95, .93], [.85, .1, .07]].map(c => { const im = new T.InstancedMesh(peg(c).geo(), new T.MeshPhongMaterial({ vertexColors: true, shininess: 50, specular: 0x777777 }), 200); im.count = 0; im.frustumCulled = false; scene.add(im); return im; });
 
@@ -794,7 +814,9 @@ let playerTurn = true, shell = null, wait = 0, time = 0, phaseT = 0, msgT = 0;
 let sel = null, horiz = true, hover = null, stats = [[0, 0], [0, 0]], won = false, fanfare = false;
 let camT = new T.Vector3(-6.5, 0, .5), camYaw = .6, camPitch = .1, camDist = 11, userYaw = 0, userPitch = 0, zoom = 1, shake = 0;
 const pendingVis = new Set(), queue = [];
-let aimed = null;
+let aimed = null, touchAim = null, cheat = false;
+let viewMine = false;
+const isCaptain = () => store.get('bs-captain') === true;
 const vkey = (b, x, y) => b * 100 + y * 10 + x;
 
 function say(text, col) { const m = $('msg'); m.textContent = text; m.style.color = col; m.classList.remove('show'); void m.offsetWidth; m.classList.add('show'); }
@@ -849,7 +871,7 @@ function showImpact(target, x, y, out) {
     say(player ? 'أغرقت ' + NAMES[s.kind] + ' ' + ADJ[s.kind] + '!' : 'أغرق ' + f + ' ' + NAMES[s.kind] + '!', player ? '#ffd640' : '#ff5040');
   }
   if (boards[target].defeated()) { won = player; wait = 0; setPhase('over'); if (mode === 'online') NET.gameOver(); }
-  else { if (mode === 'ai') playerTurn = !player; wait = player ? 1.2 : .5; }
+  else { if (mode === 'ai' && out.r === 'M') playerTurn = !player; wait = player ? 1.2 : .5; }
   uiDirty = true;
 }
 function impactLocal(target, x, y) {
@@ -866,7 +888,7 @@ const NET = {
   save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, shots: this.shots.map(([x, y]) => '' + x + y).join(''), res: this.res.join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, shots: this.shots.map(([x, y]) => '' + x + y).join(''), res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
@@ -880,9 +902,12 @@ const NET = {
   oRes() { return parseRes(String(this.opp?.res || '')); },
   myTurn() {
     if (!this.same() || phase !== 'battle') return false;
-    const mine = this.shots.length, theirs = this.oShots().length;
-    if (this.oRes().length < mine) return false;
-    return this.first() ? mine === theirs : mine < theirs;
+    const mine = this.shots.length, theirs = this.oShots().length, oRes = this.oRes(), myRes = parseRes(this.res.join(''));
+    let me = this.first(), i = 0, j = 0;
+    for (;;) {
+      if (me) { if (i >= mine) return true; const r = oRes[i++]; if (!r) return false; if (r.r === 'M') me = false; }
+      else { if (j >= theirs) return false; const r = myRes[j++]; if (!r) return false; if (r.r === 'M') me = true; }
+    }
   },
   gameOver() { this.reveal = true; this.push(); }
 };
@@ -1043,7 +1068,7 @@ canvas.addEventListener('pointermove', e => { pointer.x = e.clientX; pointer.y =
 canvas.addEventListener('pointerleave', () => { pointer.inside = false; });
 canvas.addEventListener('pointerdown', e => {
   initAudio(); pointer.x = e.clientX; pointer.y = e.clientY; pointer.inside = true;
-  if (e.button === 0) clickAt = { x: e.clientX, y: e.clientY };
+  if (e.button === 0) clickAt = { x: e.clientX, y: e.clientY, touch: e.pointerType === 'touch' };
   else if (e.button === 2 && phase === 'place') rotateShip();
   else if (e.button === 2 || e.button === 1) drag = { x: e.clientX, y: e.clientY };
 });
@@ -1085,7 +1110,12 @@ function update(dt) {
     fx.burn([p[0], p[1], z + wave(p[0], p[1], time) * .8], dt, dead ? 1 - sink * .6 : 1);
   }
   hover = pointer.inside ? groundHit(pointer.x, pointer.y) : null;
+  const touchTap = !!(clickAt && clickAt.touch);
   let click = clickAt ? groundHit(clickAt.x, clickAt.y) : null; let clicked = !!clickAt; clickAt = null;
+  if (phase === 'battle' && touchTap && clicked && click && click[0] === 1) {
+    if (!touchAim || touchAim[1] !== click[1] || touchAim[2] !== click[2]) { touchAim = click; clicked = false; play('rotate', .4); }
+    else touchAim = null;
+  }
   if (phase === 'battle' && clicked && click && click[0] === 1 && (wait > 0 || shell || queue.length)) { aimed = click; clicked = false; }
   if (phase !== 'battle') aimed = null;
   if (!clicked && aimed && phase === 'battle' && !shell && !queue.length && wait <= 0 && myTurn()) { click = aimed; clicked = true; aimed = null; }
@@ -1135,7 +1165,7 @@ function desiredCam() {
     const pf = Math.min(.45, 400 / W), d = Math.max(6.4 / tan, 12 / (1 - pf) * 1.12 / (2 * tan * asp)) * 1.05;
     return [new T.Vector3(-6.5 + pf * d * tan * asp, .6, 0), 0, .95, d];
   }
-  if (narrow) { const b = phase === 'battle' ? (myTurn() || (shell && shell.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom; return [new T.Vector3(BC[b][0], -1.4, 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
+  if (narrow) { const b = phase === 'battle' ? (viewMine ? 0 : myTurn() || touchAim || (shell && shell.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom; return [new T.Vector3(BC[b][0], -1.4, 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
   const d = Math.max(13.6 / (tan * asp), 7.2 / tan) * 1.3;
   if (phase === 'battle') return [new T.Vector3(myTurn() ? .6 : -.6, -1.1, 0), userYaw, clamp(.92 + userPitch, .35, 1.45), d * zoom];
   return [new T.Vector3(0, -1, 0), userYaw + Math.sin(phaseT * .05) * .5, clamp(.7 + userPitch, .3, 1.4), d * zoom];
@@ -1157,6 +1187,17 @@ function render(dt) {
     m.material.color.setRGB(lerp(1, .36, e), lerp(1, .31, e), lerp(1, .28, e));
     const gl = s.sunk && !s.hold ? .35 * (1 - e * .5) * (.8 + .2 * Math.sin(time * 9 + kd)) : 0; m.material.emissive.setRGB(gl, gl * .35, 0);
   }
+  spy.forEach(g => g.visible = false);
+  if (cheat && isCaptain() && (phase === 'battle' || phase === 'place')) {
+    let list = [];
+    if (mode === 'ai') list = boards[1].ships.map(s => [s.kind, s.x, s.y, s.h]);
+    else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) list.push([+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1']); }
+    for (const [kd, x, y, h] of list) {
+      if (!(kd >= 0 && kd < 5) || boards[1].ships.some(q => q.kind === kd && q.sunk && !q.hold)) continue;
+      const t = shipMatrix(1, new Ship(kd, x, y, h), time), m = spy[kd]; m.position.set(...t.pos); m.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'ZYX'); m.visible = true;
+    }
+  }
+  if (touchAim && phase === 'battle' && myTurn()) hover = touchAim;
   ghost.forEach(g => g.visible = false); fills.forEach(f => f.visible = false); reticles.forEach(r => r.visible = false);
   let fi = 0;
   const fill = (b, x, y, col) => { if (fi >= fills.length) return; const f = fills[fi++], c = cellCenter(b, x, y); f.position.set(c[0], c[1], GRID_Z - .01); f.scale.set(.92, .92, 1); f.rotation.set(0, 0, 0); f.material.uniforms.uCol.value.set(...col); f.visible = true; };
@@ -1212,7 +1253,7 @@ function labels() {
     l.s.style.display = ''; l.s.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-50%)`;
   }
   const tip = $('tip'), showTip = hover && ((phase === 'battle' && hover[0] === 1 && myTurn()) || (phase === 'place' && hover[0] === 0));
-  tip.hidden = !showTip;
+  tip.hidden = !showTip || !!touchAim || (pointer.x >= 0 && matchMedia('(pointer:coarse)').matches);
   if (showTip) { const t = coord(hover[1], hover[2]); if (tip.textContent !== t) tip.textContent = t; tip.style.left = (pointer.x + 18) + 'px'; tip.style.top = (pointer.y + 14) + 'px'; }
 }
 let uiDirty = true, lastUi = '';
@@ -1263,6 +1304,8 @@ function ui() {
     else if (myTurn()) { t = 'دورك: اختر هدفا في مياه ' + foe(); col = '#9dffd0'; }
     else if (mode === 'online') { t = (NET.opp?.nick || 'الخصم') + ' يختار هدفه...'; col = '#ff8a70'; }
     else { t = 'العدو يصوب نحو أسطولك...'; col = '#ff8a70'; }
+    $('bSpy').hidden = !isCaptain() || phase !== 'battle';
+    $('bView').hidden = phase !== 'battle' || W / H >= 1.15; setText('bView', viewMine ? 'شبكة ' + foe() : 'شبكتي');
     setText('banner', t); $('banner').style.color = col; $('banner').hidden = $('hint').hidden = phase === 'over';
   }
   if (phase === 'over') {
@@ -1300,6 +1343,8 @@ $('ui').addEventListener('click', e => {
     case 'bClear': if (!placeLocked()) { boards[0] = new Board(); sel = 0; } break;
     case 'bStart': startOrReady(); break;
     case 'bOverMenu': goMenu(); break;
+    case 'bSpy': cheat = !cheat; b.classList.toggle('on', cheat); break;
+    case 'bView': viewMine = !viewMine; break;
     case 'bAgain': if (mode === 'online') netRematch(); else goPlace(); break;
   }
   uiDirty = true;
@@ -1307,6 +1352,7 @@ $('ui').addEventListener('click', e => {
 $('nick').value = store.get('bs-nick') || 'قبطان ' + (10 + ri(90));
 if (STANDALONE) {
   $('howto').innerHTML = '<li>اضغط «غرفة جديدة» ثم «نسخ رابط الدعوة» وأرسله لصديقك (واتساب أو أي برنامج).</li><li>صديقك يفتح الرابط ويضغط «دخول»، والرمز يكون مكتوبا تلقائيا.</li><li>يعمل بين أي جهازين على الإنترنت، بدون حساب أو تثبيت.</li>';
+  if (location.hash === '#captain-sea') { store.set('bs-captain', true); history.replaceState(null, '', location.pathname); }
   const hc = location.hash.slice(1).toLowerCase();
   if (/^[a-z0-9]{3,8}$/.test(hc)) { $('code').value = hc; setTimeout(() => setPhase('lobby'), 0); }
 }
