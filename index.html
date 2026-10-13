@@ -99,7 +99,23 @@ input:focus{outline:2px solid var(--amber)}
   background:radial-gradient(circle at 35% 30%,#ff8a7a,#b3140a 60%,#4a0603);border:2px solid #2a0402;box-shadow:0 0 0 2px #0006,2px 2px 0 #0007}
 #bSpy.on{box-shadow:0 0 12px 3px #ff3b2b,0 0 0 2px #0006}
 #bView{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:15px;padding:6px 14px}
+#inv{left:18px;top:96px;width:200px;padding:10px;--acc:var(--amber)}#inv .hdr{font-size:18px;margin-bottom:8px}
+#invList{display:flex;flex-direction:column;gap:6px}
+#invList button{display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:14px;text-align:right}
+#invList button img{width:40px;height:40px;flex:none;animation:bob 2.4s ease-in-out infinite}
+#invList button b{margin-inline-start:auto;color:var(--amber);font-variant-numeric:tabular-nums}
+#invList button.armed{background:linear-gradient(#ffffff55,#ffffff15 46%,transparent 47%),linear-gradient(#f3b33a,#7a420a)}
+#invList .none{color:var(--ink-dim);font-size:13px;text-align:center}
+#pick{left:50%;top:50%;transform:translate(-50%,-50%);width:min(620px,calc(100vw - 24px));box-sizing:border-box;z-index:3;--acc:var(--amber)}
+#pickList{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+#pickList button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 8px;font-size:16px}
+#pickList button img{width:84px;height:84px;animation:bob 2s ease-in-out infinite}
+#pickList button small{font-weight:400;font-size:12px;color:#d6e6ff;line-height:1.4}
+@keyframes bob{50%{transform:translateY(-4px) rotate(-4deg)}}
+.bubble{position:absolute;left:0;top:0;padding:4px 12px;background:#fffdf2;color:#3a2208;border:2px solid #3a2208;border-radius:16px;font:900 18px var(--f-ui);white-space:nowrap;box-shadow:3px 3px 0 #0006}
+.bubble::after{content:"";position:absolute;bottom:-9px;left:50%;border:8px solid transparent;border-top-color:#3a2208;border-bottom:0;transform:translateX(-50%)}
 @media (max-height:520px) and (min-width:761px){
+  #inv{top:46px;width:170px;padding:6px}#invList button img{width:28px;height:28px}
   #placePanel{top:8px;bottom:8px;right:8px;width:300px;overflow:auto;padding:10px}#placePanel .hdr{font-size:18px;margin-bottom:6px}
   #shipList button{padding:5px 10px;font-size:14px}#placePanel .dim{display:none}
   .fleet{width:210px;bottom:8px;padding:8px 10px}.fleet .hdr{font-size:15px;margin-bottom:4px}.fleet li{font-size:12px}.pips i{width:10px;height:10px}
@@ -109,6 +125,8 @@ input:focus{outline:2px solid var(--amber)}
   #lobbyPanel{max-height:calc(100vh - 16px);overflow:auto}#overPanel{top:8px}#overTitle{font-size:48px}
 }
 @media (max-width:760px){
+  #inv{left:auto;right:8px;top:110px;width:auto;padding:6px}#inv .hdr{display:none}#invList button span{display:none}#invList button img{width:34px;height:34px}
+  #pickList button img{width:60px;height:60px}
   #msg{font-size:clamp(20px,6.4vw,30px);top:12%;padding-inline:12px}
   #bSpy{top:66px;left:12px}
   #menuPanel{top:auto;bottom:40px}#overTitle{font-size:56px}
@@ -181,6 +199,8 @@ input:focus{outline:2px solid var(--amber)}
     <div class="panel fleet" id="fleetMe"><div class="hdr">أسطولك</div><ul></ul></div>
     <div class="panel fleet" id="fleetFoe"><div class="hdr">أسطول العدو</div><ul></ul></div>
     <div id="stats"></div>
+    <div class="panel" id="inv"><div class="hdr">قدراتك</div><div id="invList"></div></div>
+    <div class="panel col" id="pick" hidden><div class="hdr">باور أب! اختر قدرة واحدة</div><div id="pickList"></div></div>
     <div id="hint">عجلة الفأرة: تقريب · اسحب بالزر الأيمن: تدوير الكاميرا · C: إعادة الكاميرا · Esc: القائمة</div>
   </section>
 
@@ -228,10 +248,10 @@ const cellCenter = (b, x, y) => [BC[b][0] + x - 4.5, BC[b][1] + 4.5 - y];
 function cellAt(b, px, py) { const lx = px - (BC[b][0] - 5), ly = (BC[b][1] + 5) - py; return lx >= 0 && lx < 10 && ly >= 0 && ly < 10 ? [lx | 0, ly | 0] : null; }
 
 class Ship {
-  constructor(kind, x, y, h) { this.kind = kind; this.x = x; this.y = y; this.h = h; this.hits = 0; this.sink = 0; this.hold = false; }
+  constructor(kind, x, y, h) { this.kind = kind; this.x = x; this.y = y; this.h = h; this.hits = 0; this.sealed = 0; this.shield = false; this.sink = 0; this.hold = false; }
   get len() { return LENS[this.kind]; }
   cells() { const c = []; for (let i = 0; i < this.len; i++) c.push(this.h ? [this.x + i, this.y] : [this.x, this.y + i]); return c; }
-  get sunk() { let n = 0, b = this.hits; while (b) { n += b & 1; b >>= 1; } return n === this.len; }
+  get sunk() { let n = 0, b = this.hits | this.sealed; while (b) { n += b & 1; b >>= 1; } return n === this.len; }
 }
 class Board {
   constructor() { this.ships = []; this.shot = [...Array(10)].map(() => Array(10).fill(0)); }
@@ -253,6 +273,12 @@ class Board {
   }
 }
 
+// a shielded ship shrugs off one hit; the shooter only ever sees a miss there
+function defend(board, x, y) {
+  const i = board.shipAt(x, y), s = i >= 0 ? board.ships[i] : null;
+  if (s && s.shield && !s.sunk) { s.shield = false; s.sealed |= 1 << s.cells().findIndex(c => c[0] === x && c[1] === y); board.shot[y][x] = 1; return { r: 'M', blocked: true }; }
+  return board.fire(x, y);
+}
 function aiTarget(b, level) {
   const k = b.known(), at = (x, y) => x >= 0 && x < 10 && y >= 0 && y < 10 ? k[y][x] : -1;
   const all = []; for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) all.push([x, y]);
@@ -287,6 +313,32 @@ class Model {
   triN(a, b, c, na, nb, nc, col) {
     if (vdot(vcross(vsub(b, a), vsub(c, a)), vadd(vadd(na, nb), nc)) < 0) { [b, c] = [c, b]; [nb, nc] = [nc, nb]; }
     this.P.push(...a, ...b, ...c); this.N.push(...na, ...nb, ...nc); this.C.push(...col, ...col, ...col);
+  }
+  triNC(a, b, c, na, nb, nc, ca, cb, cc) {
+    if (vdot(vcross(vsub(b, a), vsub(c, a)), vadd(vadd(na, nb), nc)) < 0) { [b, c] = [c, b]; [nb, nc] = [nc, nb]; [cb, cc] = [cc, cb]; }
+    this.P.push(...a, ...b, ...c); this.N.push(...na, ...nb, ...nc); this.C.push(...ca, ...cb, ...cc);
+  }
+  grid(g, n, c) {
+    for (let i = 0; i < g.length - 1; i++) for (let j = 0; j < g[0].length - 1; j++) {
+      const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]];
+      const P = q.map(([a, b]) => g[a][b]), Nn = q.map(([a, b]) => n[a][b]), Cc = q.map(([a, b]) => c[a][b]);
+      this.triNC(P[0], P[1], P[2], Nn[0], Nn[1], Nn[2], Cc[0], Cc[1], Cc[2]); this.triNC(P[0], P[2], P[3], Nn[0], Nn[2], Nn[3], Cc[0], Cc[2], Cc[3]);
+    }
+  }
+  ellipsoid(c, r, nu, nv, colf) {
+    const g = [], n = [], cl = [];
+    for (let i = 0; i <= nv; i++) { const la = -Math.PI / 2 + i / nv * Math.PI, rg = [], rn = [], rc = [];
+      for (let j = 0; j <= nu; j++) { const lo = j / nu * TAU, d = [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)], p = [c[0] + d[0] * r[0], c[1] + d[1] * r[1], c[2] + d[2] * r[2]];
+        rg.push(p); rn.push(vnorm([d[0] / r[0], d[1] / r[1], d[2] / r[2]])); rc.push(typeof colf === 'function' ? colf(p) : colf); }
+      g.push(rg); n.push(rn); cl.push(rc); }
+    this.grid(g, n, cl);
+  }
+  tube(pts, radii, seg, colf) {
+    const g = [], n = [], cl = [];
+    pts.forEach((p, i) => { const t = vnorm(vsub(pts[Math.min(pts.length - 1, i + 1)], pts[Math.max(0, i - 1)])), u = vnorm(vcross(t, Math.abs(t[2]) < .9 ? [0, 0, 1] : [1, 0, 0])), v = vcross(t, u), rg = [], rn = [], rc = [];
+      for (let j = 0; j <= seg; j++) { const a = j / seg * TAU, d = vadd(vmul(u, Math.cos(a)), vmul(v, Math.sin(a))), q = vadd(p, vmul(d, radii[i])); rg.push(q); rn.push(d); rc.push(typeof colf === 'function' ? colf(q) : colf); }
+      g.push(rg); n.push(rn); cl.push(rc); });
+    this.grid(g, n, cl);
   }
   tri(a, b, c, col) { const n = vnorm(vcross(vsub(b, a), vsub(c, a))); this.triN(a, b, c, n, n, n, col); }
   quad(a, b, c, d, col) { this.tri(a, b, c, col); this.tri(a, c, d, col); }
@@ -494,16 +546,45 @@ function orangeShip(p) {
   }
   return m;
 }
+const GY = [.97, .8, .42], GB = [.6, .34, .11], GC = [.99, .92, .72], GD = [.25, .15, .07];
+function h3(x, y, z) { const v = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return v - Math.floor(v); }
+function giraffeSkin(p) {
+  if (p[2] < .135) return p[2] < .03 ? GD : GC;
+  const S = .048, cx = Math.floor(p[0] / S), cy = Math.floor(p[1] / S), cz = Math.floor(p[2] / S); let d1 = 9, d2 = 9;
+  for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
+    const X = cx + a, Y = cy + b, Z = cz + c, q = [(X + h3(X, Y, Z)) * S, (Y + h3(Y, Z, X)) * S, (Z + h3(Z, X, Y)) * S], d = vlen(vsub(p, q));
+    if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+  }
+  return d2 - d1 < .0075 ? GY : GB;
+}
 function giraffe() {
-  const g = new Model(), Y = [.93, .74, .32], B = [.48, .28, .1];
-  for (const [lx, ly] of [[-.07, -.025], [-.07, .025], [.07, -.025], [.07, .025]]) g.cyl([lx, ly, 0], [lx, ly, .13], .012, .012, 5, Y, false);
-  g.block([-.1, -.045, .12], [.1, .045, .21], .015, .008, Y);
-  g.cyl([.07, 0, .19], [.14, 0, .62], .028, .018, 7, Y, false);
-  g.block([.11, -.025, .6], [.21, .025, .655], .012, .006, Y);
-  g.cuboid([.195, -.02, .6], [.235, .02, .64], B);
-  for (const sy of [-1, 1]) { g.cyl([.13, sy * .013, .65], [.125, sy * .016, .7], .006, .006, 4, B, true); g.cuboid([.1, sy * .025, .63], [.12, sy * .05, .645], Y); }
-  for (const [x, z] of [[-.05, .17], [.03, .15], [.06, .19], [-.08, .19]]) for (const sy of [-1, 1]) g.cuboid([x, sy * .046 - .001, z], [x + .035, sy * .046 + .001, z + .03], B);
-  for (let i = 0; i < 4; i++) { const t = .25 + i * .17, x = .07 + .07 * t, z = .19 + .43 * t; for (const sy of [-1, 1]) g.cuboid([x - .012, sy * .026 - .002, z], [x + .012, sy * .026 + .002, z + .03], B); }
+  const g = new Model();
+  for (const [lx, ly] of [[-.075, -.032], [-.075, .032], [.07, -.032], [.07, .032]]) {
+    g.tube([[lx, ly, .01], [lx + .004, ly, .07], [lx + .006, ly, .16]], [.011, .012, .019], 7, GC);
+    g.ellipsoid([lx, ly, .012], [.015, .013, .012], 7, 4, GD);
+  }
+  g.ellipsoid([0, 0, .18], [.118, .056, .058], 14, 9, giraffeSkin);
+  g.ellipsoid([.075, 0, .2], [.05, .05, .052], 10, 7, giraffeSkin);
+  g.tube([[.085, 0, .2], [.11, 0, .34], [.135, 0, .5], [.15, 0, .61]], [.036, .027, .021, .018], 9, giraffeSkin);
+  g.tube([[.055, 0, .235], [.088, 0, .4], [.118, 0, .58]], [.007, .008, .006], 5, GD);
+  g.ellipsoid([.178, 0, .642], [.052, .027, .03], 11, 8, giraffeSkin);
+  g.ellipsoid([.226, 0, .63], [.032, .021, .021], 9, 6, [.86, .66, .4]);
+  for (const sy of [-1, 1]) {
+    g.ellipsoid([.19, sy * .024, .655], [.007, .006, .007], 6, 4, [.04, .03, .03]);
+    g.ellipsoid([.152, sy * .036, .668], [.009, .021, .007], 6, 4, GY);
+    g.tube([[.162, sy * .012, .662], [.16, sy * .015, .705]], [.006, .005], 5, GY);
+    g.ellipsoid([.16, sy * .015, .708], [.009, .009, .009], 6, 4, GD);
+  }
+  g.tube([[-.112, 0, .2], [-.125, 0, .15], [-.13, 0, .1]], [.005, .004, .004], 4, GY);
+  g.ellipsoid([-.131, 0, .09], [.009, .009, .016], 5, 4, GD);
+  return g;
+}
+function bazookaGiraffe() {
+  const g = giraffe(), olive = [.26, .36, .16];
+  g.cyl([-.04, .062, .28], [.25, .062, .37], .026, .026, 10, olive, true);
+  g.cyl([.25, .062, .37], [.27, .062, .376], .032, .03, 10, [.1, .1, .1], false);
+  g.cuboid([.05, .05, .25], [.08, .07, .3], olive);
+  g.cuboid([.01, .088, .3], [.06, .096, .33], [.15, .15, .15]);
   return g;
 }
 function giraffeShip(p) {
@@ -513,6 +594,29 @@ function giraffeShip(p) {
   m.cuboid([-.72, -.2, dh], [.72, .2, dh + .005], [.55, .48, .3]);
   const gi = giraffe();
   [[-.45, -.06, .25], [.0, .07, -.15], [.45, -.05, .1]].forEach(([x, y, r]) => m.add(gi, mul(MT(x, y, dh), MRZ(r), MS(1.3, 1.3, 1.3))));
+  return m;
+}
+function shellModel() {
+  const m = new Model();
+  for (const y of [-.07, .07]) {
+    m.cyl([0, y, 0], [0, y, .2], .05, .05, 14, [.86, .66, .25], true);
+    m.cyl([0, y, .2], [0, y, .31], .05, .0, 14, [.62, .62, .6], false);
+    m.cyl([0, y, .03], [0, y, .055], .052, .052, 14, [.75, .15, .1], false);
+  }
+  return m;
+}
+function radarModel() {
+  const m = new Model(), G = [.25, .95, .4], D = [.12, .2, .14];
+  m.cyl([0, 0, 0], [0, 0, .05], .1, .085, 12, D, true);
+  m.cyl([0, 0, .05], [0, 0, .2], .018, .014, 8, [.6, .65, .6], false);
+  m.cyl([0, 0, .2], [.06, 0, .27], .015, .16, 16, G, false);
+  m.cyl([.03, 0, .23], [.12, 0, .32], .006, .006, 5, [.8, .85, .8], false);
+  m.ellipsoid([.12, 0, .32], [.016, .016, .016], 6, 4, [1, .3, .2]);
+  return m;
+}
+function shieldModel() {
+  const m = new Model(), B = [.25, .6, 1], Gd = [1, .82, .3];
+  m.ellipsoid([0, 0, .12], [.16, .03, .2], 16, 10, p => Math.abs(p[2] - .12) < .02 || Math.abs(p[0]) < .018 ? Gd : B);
   return m;
 }
 const SHIP_FN = [carrier, battleship, cruiser, submarine, destroyer, orangeShip, giraffeShip];
@@ -583,6 +687,11 @@ scene.add(isl);
 const shipGeo = [PLAYER, ENEMY].map(p => SHIP_FN.map(f => f(p).geo()));
 const shipMesh = [0, 1].map(b => shipGeo[b].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, shininess: 30, specular: 0x5a5a5a, side: T.DoubleSide })); m.visible = false; scene.add(m); return m; }));
 const spy = shipGeo[1].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: .55, depthWrite: false, color: 0xff6050, emissive: 0x401008, side: T.DoubleSide })); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
+const pwMat = () => new T.MeshPhongMaterial({ vertexColors: true, shininess: 60, specular: 0x777777, side: T.DoubleSide });
+const radarMesh = new T.Mesh(radarModel().geo(), pwMat()); radarMesh.visible = false; scene.add(radarMesh);
+const bzMesh = new T.Mesh(bazookaGiraffe().geo(), pwMat()); bzMesh.visible = false; scene.add(bzMesh);
+const domeMat = new T.MeshPhongMaterial({ color: 0x3a8cff, emissive: 0x0a2a66, transparent: true, opacity: .28, depthWrite: false, shininess: 90, specular: 0xffffff, side: T.DoubleSide });
+const domes = [...Array(7)].map(() => { const m = new T.Mesh(new T.SphereGeometry(1, 24, 12, 0, TAU, 0, Math.PI / 2), domeMat); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
 const ghost = shipGeo[0].map(g => { const m = new T.Mesh(g, new T.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: .6, depthWrite: false, side: T.DoubleSide })); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
 const pegs = [[.95, .95, .93], [.85, .1, .07]].map(c => { const im = new T.InstancedMesh(peg(c).geo(), new T.MeshPhongMaterial({ vertexColors: true, shininess: 50, specular: 0x777777 }), 200); im.count = 0; im.frustumCulled = false; scene.add(im); return im; });
 
@@ -614,7 +723,7 @@ const decalMat = mode => new T.ShaderMaterial({
   transparent: true, depthWrite: false, blending: T.AdditiveBlending
 });
 const plane = new T.PlaneGeometry(1, 1);
-const fills = [...Array(6)].map(() => { const m = new T.Mesh(plane, decalMat(0)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
+const fills = [...Array(18)].map(() => { const m = new T.Mesh(plane, decalMat(0)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
 const reticles = [0, 1, 2].map(() => { const m = new T.Mesh(plane, decalMat(1)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
 
 // particles: billboards with procedural soft / puffy / ring sprites
@@ -657,6 +766,7 @@ const post = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({
 }));
 const postScene = new T.Scene(), postCam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1); postScene.add(post);
 function resize() {
+  if (innerWidth < 2 || innerHeight < 2) return;
   W = innerWidth; H = innerHeight; renderer.setSize(W, H, false);
   const s = Math.min(1, 720 / H), w = Math.max(16, Math.round(W * s)), h = Math.max(16, Math.round(H * s));
   if (!rt || rt.width !== w || rt.height !== h) { if (rt) rt.dispose(); rt = new T.WebGLRenderTarget(w, h, { minFilter: T.LinearFilter, magFilter: T.LinearFilter, depthBuffer: true }); }
@@ -732,6 +842,11 @@ const SFX = {
   click() { return normalize(gen(.05, t => (Math.sin(TAU * 1800 * t) * .6 + Math.sin(TAU * 900 * t)) * Math.exp(-t * 90)), .4); },
   place() { return normalize(gen(.35, t => (Math.sin(TAU * 210 * t) + Math.sin(TAU * 517 * t) * .6 + Math.sin(TAU * 1130 * t) * .35) * Math.exp(-t * 16) + noiseF() * Math.exp(-t * 60) * .5), .55); },
   rotate() { let ph = 0; return normalize(gen(.08, t => { ph += TAU * (600 + 4000 * t) / SR; return Math.sin(ph) * (1 - t / .08); }), .3); },
+  maa() { let ph = 0; const fm = [[800, 130, 1], [1200, 160, .7], [2600, 260, .25]]; return normalize(gen(1.5, t => {
+    const f0 = 255 - 70 * t / 1.5 + 6 * Math.sin(TAU * 5 * t); ph += TAU * f0 / SR; let v = 0;
+    for (let k = 1; k * f0 < 4500; k++) { let a = .04 / k; for (const [F, B, g] of fm) a += g * Math.exp(-(((k * f0 - F) / B) ** 2)); v += Math.sin(k * ph) * a; }
+    return v * Math.min(1, t / .06) * Math.max(0, Math.min(1, (1.5 - t) / .4)) * (.65 + .35 * Math.sin(TAU * 7.5 * t)); }), .7); },
+  rocket() { const l = lpf(); return normalize(gen(1.2, t => l(noiseF(), 900 + 2500 * Math.exp(-t * 3)) * Math.min(1, t / .02) * Math.exp(-t * 1.8) + Math.sin(TAU * (90 - 40 * t) * t) * Math.exp(-t * 9) * .4), .7); },
   ping() { const one = t => t < 0 ? 0 : Math.sin(TAU * 1180 * t) * Math.min(1, t / .004) * Math.exp(-t * 3.5); return normalize(gen(2.2, t => one(t) + one(t - .5) * .3 + one(t - 1) * .1), .35); },
   win() { const ns = [[523.25, 0, .16], [659.25, .18, .16], [783.99, .36, .16], [1046.5, .54, 1.1], [783.99, .54, 1.1], [523.25, .54, 1.1]]; return normalize(gen(2.2, t => ns.reduce((s, [f, st, l]) => s + brassNote(f, t - st, l), 0)), .6); },
   lose() { const ns = [[392, 0, .35], [311.13, .4, .35], [261.63, .8, 1.2], [196, .8, 1.2], [155.56, .8, 1.2]]; return normalize(gen(2.6, t => ns.reduce((s, [f, st, l]) => s + brassNote(f * .5, t - st, l), 0)), .6); },
@@ -743,9 +858,9 @@ const SFX = {
 };
 function brassNote(f, t, len) { if (t < 0 || t > len + .3) return 0; const e = Math.min(1, t / .03) * (t > len ? Math.max(0, 1 - (t - len) / .3) : 1 - .25 * t / len); let s = 0; for (let h = 1; h < 8; h++) s += Math.sin(TAU * f * h * t) / h * (1 - h / 9); return s * e; }
 function buf(data) { const b = AC.createBuffer(1, data.length, SR); b.copyToChannel(data, 0); return b; }
-function play(name, vol = 1) {
+function play(name, vol = 1, rate = 1) {
   if (!AC || !soundOn || !sfx[name]) return;
-  const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = sfx[name]; g.gain.value = vol; s.connect(g); g.connect(sfxBus); s.start();
+  const s = AC.createBufferSource(), g = AC.createGain(); s.buffer = sfx[name]; s.playbackRate.value = rate; g.gain.value = vol; s.connect(g); g.connect(sfxBus); s.start();
 }
 function initAudio() {
   if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
@@ -866,8 +981,19 @@ let playerTurn = true, shells = [], wait = 0, time = 0, phaseT = 0, msgT = 0;
 let sel = null, horiz = true, hover = null, stats = [[0, 0], [0, 0]], won = false, fanfare = false;
 let camT = new T.Vector3(-6.5, 0, .5), camYaw = .6, camPitch = .1, camDist = 11, userYaw = 0, userPitch = 0, zoom = 1, shake = 0;
 const pendingVis = new Set(), queue = [];
-let power = [0, 0], streak = [0, 0], pick1 = null;
+let streak = [0, 0], pick1 = null, armed = null, pendingPick = 0, radar = null, bz = null, bubbles = [];
+const PW = ['double', 'radar', 'shield', 'bazooka'];
+const PW_NAME = { double: 'ضربتين معا', radar: 'رادار', shield: 'درع', bazooka: 'بازوكا الزرافة' };
+const PW_DESC = { double: 'تطلق قذيفتين على هدفين في نفس الوقت', radar: 'رادار أخضر يكشف المربعات حول نقطة في مياه الخصم', shield: 'يحمي سفينة من ضربة واحدة والخصم يظنها خطأ', bazooka: 'زرافة تطلع ببازوكا وتصيب هدفا صحيحا' };
+let inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }, aiInv = { double: 0, shield: 0, bazooka: 0 };
+const giraffeAlive = b => boards[b].ships.some(q => q.kind === 6 && !q.sunk);
 const stains = [0, 1].map(() => ({ x: 0, y: 0, r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
+function giraffeCry(b, s) {
+  const t = shipMatrix(b, s, time);
+  [0, .45, .9].forEach((d, i) => setTimeout(() => { play('maa', .8, [1, 1.12, .9][i]); }, 600 + d * 1000));
+  [-.45, 0, .45].forEach((o, i) => { const el = document.createElement('div'); el.className = 'bubble'; el.textContent = 'مااااااا!'; $('labels').appendChild(el);
+    bubbles.push({ el, p: [t.pos[0] + (s.h ? o * 1.3 : 0), t.pos[1] + (s.h ? 0 : o * 1.3), 1.1], born: time + .6 + i * .45, die: time + 4.5 + i * .45 }); });
+}
 function orangeSpill(b, px, py, sunk) {
   const st = stains[b]; st.n++; st.x = st.n === 1 ? px : lerp(st.x, px, .4); st.y = st.n === 1 ? py : lerp(st.y, py, .4);
   st.tr = Math.min(5.5, 2.2 + st.n * 1.1 + (sunk ? 1.5 : 0)); st.ts = Math.min(.85, .45 + st.n * .15 + (sunk ? .2 : 0));
@@ -885,7 +1011,7 @@ function goMenu() { netLeave(); mode = 'ai'; boards = [Board.random(), new Board
 function goPlace() { boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
 function startBattle() {
   if (mode === 'ai') boards[1] = Board.random();
-  power = [0, 0]; streak = [0, 0]; pick1 = null; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
+  streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
   setPhase('battle'); say(playerTurn ? 'بدأت المعركة! أطلق النار أولا' : 'بدأت المعركة! الخصم يبدأ', '#ffd36b');
@@ -903,6 +1029,27 @@ function shipMatrix(b, s, t) {
   return { pos: [c[0], c[1], (hb + hs) * .4 - e * .3], rot: [roll, -pitch, Math.atan2(dir[1], dir[0])] };
 }
 
+function placeRadar(x, y) {
+  let ships = [];
+  if (mode === 'ai') ships = boards[1].ships;
+  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) ships.push(new Ship(+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1')); }
+  const marks = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = x + dx, cy = y + dy; if (cx < 0 || cy < 0 || cx > 9 || cy > 9) continue; marks.push({ x: cx, y: cy, has: ships.some(q => q.cells().some(c => c[0] === cx && c[1] === cy)) }); }
+  radar = { x, y, marks, t0: time, until: time + 7 };
+  play('ping', .8); say(marks.some(m => m.has) ? 'الرادار رصد سفنا قريبة!' : 'الرادار: لا شيء حول هذه النقطة', '#7dffa0');
+}
+function fireBazooka() {
+  let cells = [];
+  if (mode === 'ai') cells = boards[1].ships.flatMap(q => q.cells());
+  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) cells.push(...new Ship(+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1').cells()); }
+  cells = cells.filter(([x, y]) => boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(q => q[0] === x && q[1] === y)));
+  if (!cells.length || !giraffeAlive(0)) { play('click', .4); return; }
+  inv.bazooka--; uiDirty = true;
+  const [x, y] = cells[ri(cells.length)], g = boards[0].ships.find(q => q.kind === 6), t = shipMatrix(0, g, time);
+  if (mode === 'online') { NET.shots.push([x, y]); NET.push(); }
+  bz = { pos: t.pos, rot: t.rot[2], t0: time, x, y, idx: mode === 'online' ? NET.shots.length - 1 : undefined, fired: false };
+  wait = 1.5; say('الزرافة طلعت بالبازوكا!', '#ffd84d');
+}
 function launch(target, x, y, extra = {}) {
   const tc = cellCenter(target, x, y), to = [tc[0], tc[1], .12];
   let from;
@@ -911,10 +1058,11 @@ function launch(target, x, y, extra = {}) {
     const o = new T.Object3D(); o.position.set(...m.pos); o.rotation.set(m.rot[0], m.rot[1], m.rot[2], 'ZYX'); o.updateMatrix();
     const v = new T.Vector3(s.len * .22, 0, .42).applyMatrix4(o.matrix); from = [v.x, v.y, v.z];
   } else from = [BC[1][0] + rnd(-4.5, 4.5), rnd(7, 9.5), .35];
+  if (extra.from) from = extra.from;
   const dist = vlen(vsub(to, from));
   fx.muzzle(from, vadd(vmul(vnorm(vsub(to, from)), .5), [0, 0, .5]));
-  play('fire', target === 1 ? .85 : .5);
-  shells.push(Object.assign({ from, to, t: 0, dur: 1 + dist * .05, arc: 2 + dist * .22, target, x, y, whistled: false }, extra));
+  if (!extra.rocket) play('fire', target === 1 ? .85 : .5);
+  shells.push(Object.assign({ from, to, t: 0, dur: extra.rocket ? .6 + dist * .03 : 1 + dist * .05, arc: extra.rocket ? .8 + dist * .05 : 2 + dist * .22, target, x, y, whistled: false }, extra));
 }
 
 // effects + messages for a resolved shot; out = {r:'M'} | {r:'H',kind} | {r:'S',ship}
@@ -925,7 +1073,8 @@ function showImpact(target, x, y, out, vol) {
   streak[who] = out.r === 'M' ? 0 : streak[who] + 1;
   const hitKind = out.r === 'H' ? out.kind : out.r === 'S' ? out.ship.kind : -1;
   if (hitKind === 5) orangeSpill(target, px, py, out.r === 'S');
-  if (out.r === 'M') { fx.splash([px, py, 0], 1); play('splash', .8); say(player ? 'أخطأت الهدف ' + c : f + ' أخطأ في ' + c, player ? '#d9ebff' : '#9fd9ff'); }
+  if (out.blocked && !player) { fx.splash([px, py, 0], 1); play('ping', .8, 1.4); for (let i = 0; i < 30; i++) { const d = rdir(); fx.add({ p: [px, py, .4], v: vmul(d, 2), life: .7, s0: .25, s1: .05, c0: [.4, .7, 1, 1], c1: [.2, .5, 1, 0], drag: 2 }); } say('الدرع صد ضربة ' + f + '!', '#7fc8ff'); }
+  else if (out.r === 'M') { fx.splash([px, py, 0], 1); play('splash', .8); say(player ? 'أخطأت الهدف ' + c : f + ' أخطأ في ' + c, player ? '#d9ebff' : '#9fd9ff'); }
   else if (out.r === 'H') { stats[who][1]++; fx.explosion([px, py, .1], 1); fx.splash([px, py, 0], .5); play('boom', .9); shake = .25; say(player ? 'إصابة مباشرة! ' + c : f + ' أصاب ' + NAMES[out.kind ?? 0] + '!', player ? '#ffa040' : '#ff6a50'); }
   else {
     stats[who][1]++; const s = out.ship;
@@ -933,9 +1082,12 @@ function showImpact(target, x, y, out, vol) {
     const sh = boards[target].ships.find(o => o.kind === s.kind); if (sh) sh.hold = false;
     fx.splash([px, py, 0], 1.2); play('boom', 1); play('sink', .9); shake = .6;
     say(player ? 'أغرقت ' + NAMES[s.kind] + ' ' + ADJ[s.kind] + '!' : 'أغرق ' + f + ' ' + NAMES[s.kind] + '!', player ? '#ffd640' : '#ff5040');
+    if (s.kind === 6) giraffeCry(target, s);
     if (streak[who] >= LENS[s.kind]) {
-      power[who]++;
-      setTimeout(() => { if (phase === 'battle') { say(player ? 'باور أب! ضربتين في نفس الوقت' : f + ' حصل على باور أب!', '#ffd84d'); play('ping', .7); } }, 1300);
+      if (player) pendingPick++;
+      else if (mode === 'ai') { const c = ['double', 'shield', ...(giraffeAlive(1) ? ['bazooka'] : [])][ri(giraffeAlive(1) ? 3 : 2)];
+        if (c === 'shield') { const alive = boards[1].ships.filter(q => !q.sunk && !q.shield); if (alive.length) alive[ri(alive.length)].shield = true; } else aiInv[c]++; }
+      setTimeout(() => { if (phase === 'battle') { say(player ? 'باور أب! اختر قدرتك' : f + ' حصل على باور أب!', '#ffd84d'); play('ping', .7); } }, 1300);
     }
   }
   if (boards[target].defeated()) { won = player; wait = 0; setPhase('over'); if (mode === 'online') NET.gameOver(); }
@@ -1125,7 +1277,7 @@ function netTick() {
   while (NET.res.length < theirs.length && phase === 'battle') {
     const [x, y] = theirs[NET.res.length];
     if (boards[0].shot[y][x]) { NET.res.push(encRes({ r: boards[0].shot[y][x] === 1 ? 'M' : 'H' })); changed = true; continue; }
-    const o = boards[0].fire(x, y); NET.res.push(encRes(o)); NET.inc.push([x, y]); changed = true;
+    const o = defend(boards[0], x, y); NET.res.push(encRes(o)); NET.inc.push([x, y]); changed = true;
     pendingVis.add(vkey(0, x, y)); if (o.r === 'S') { const s = boards[0].ships.find(q => q.kind === o.ship.kind); if (s) s.hold = true; }
     queue.push({ target: 0, x, y, out: o, vol: NET.oDbl().has(NET.res.length - 1) });
   }
@@ -1203,16 +1355,22 @@ function update(dt) {
       else play('click', .4);
     } else { const i = boards[0].shipAt(x, y); if (i >= 0) { const s = boards[0].ships.splice(i, 1)[0]; sel = s.kind; horiz = s.h; play('click', .6); uiDirty = true; } }
   }
+  if (phase === 'battle' && armed === 'shield' && clicked && click && click[0] === 0) {
+    clicked = false; const i = boards[0].shipAt(click[1], click[2]);
+    if (i >= 0 && !boards[0].ships[i].sunk && !boards[0].ships[i].shield) { boards[0].ships[i].shield = true; inv.shield--; armed = null; play('ping', .7, 1.3); say('الدرع يحمي ' + NAMES[boards[0].ships[i].kind], '#7fc8ff'); uiDirty = true; }
+    else play('click', .4);
+  }
+  if (bz && !bz.fired && time - bz.t0 > .7 && phase === 'battle') { bz.fired = true; play('rocket', .9); launch(1, bz.x, bz.y, { rocket: true, from: [bz.pos[0], bz.pos[1], bz.pos[2] + 1.1], idx: bz.idx }); }
   if (phase === 'battle') {
     if (shells.length) {
       for (const sh of shells.slice()) {
         sh.t += dt / sh.dur; const t = Math.min(1, sh.t);
         const p = vadd(vadd(vmul(sh.from, 1 - t), vmul(sh.to, t)), [0, 0, sh.arc * 4 * t * (1 - t)]);
         if (!sh.whistled && sh.t > .3) { sh.whistled = true; play('whistle', sh.target === 0 ? .7 : .4); }
-        if (sh.t < 1) { fx.shell(p, dt); continue; }
+        if (sh.t < 1) { fx.shell(p, dt); if (sh.rocket) fx.add({ p, v: [0, 0, .3], life: .5, s0: .35, s1: .1, c0: [1, .7, .2, 1], c1: [1, .2, 0, 0], k: 1.1 }); continue; }
         let out = sh.out;
         if (!out && mode === 'online' && sh.target === 1) { const o = NET.oRes()[sh.idx]; if (o) { applyRemote(sh.x, sh.y, o); out = o; } }
-        else if (!out) out = boards[sh.target].fire(sh.x, sh.y);
+        else if (!out) out = defend(boards[sh.target], sh.x, sh.y);
         if (out) { shells.splice(shells.indexOf(sh), 1); showImpact(sh.target, sh.x, sh.y, out, sh.vol); if (phase !== 'battle') break; }
       }
     } else if (wait > 0) wait -= dt;
@@ -1222,22 +1380,26 @@ function update(dt) {
       if (vol) { const q2 = queue.shift(); launch(q2.target, q2.x, q2.y, { out: q2.out, vol }); }
     }
     else if (myTurn()) {
-      if (clicked && click && click[0] === 1) {
+      if (armed === 'bazooka') { armed = null; fireBazooka(); }
+      else if (clicked && click && click[0] === 1 && armed === 'radar') { placeRadar(click[1], click[2]); inv.radar--; armed = null; uiDirty = true; }
+      else if (clicked && click && click[0] === 1) {
         const [, x, y] = click;
         const free = boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(s => s[0] === x && s[1] === y));
         if (!free || (pick1 && pick1[0] === x && pick1[1] === y)) play('click', .4);
-        else if (power[0] > 0 && !pick1) { pick1 = [x, y]; play('rotate', .6); uiDirty = true; }
+        else if (armed === 'double' && !pick1) { pick1 = [x, y]; play('rotate', .6); uiDirty = true; }
         else {
           const targets = pick1 ? [pick1, [x, y]] : [[x, y]], vol = pick1 ? { total: 2, hits: 0, done: 0 } : null;
-          if (pick1) { power[0]--; pick1 = null; }
+          if (pick1) { inv.double--; armed = null; pick1 = null; uiDirty = true; }
           if (mode === 'online') { if (vol) NET.dbl.push(NET.shots.length); for (const tg of targets) NET.shots.push(tg); NET.push(); }
           targets.forEach(([tx, ty], i) => launch(1, tx, ty, { idx: mode === 'online' ? NET.shots.length - targets.length + i : undefined, vol }));
         }
       }
     } else if (mode === 'ai') {
       const [x, y] = aiTarget(boards[0], level);
-      if (power[1] > 0) {
-        power[1]--; boards[0].shot[y][x] = 9; const s2 = aiTarget(boards[0], level); boards[0].shot[y][x] = 0;
+      const open = boards[0].ships.flatMap(q => q.sunk ? [] : q.cells()).filter(([cx, cy]) => !boards[0].shot[cy][cx]);
+      if (aiInv.bazooka > 0 && giraffeAlive(1) && open.length) { aiInv.bazooka--; const [bx, by] = open[ri(open.length)]; play('rocket', .7); launch(0, bx, by, { rocket: true }); say(foe() + ' أطلق بازوكا الزرافة!', '#ff8a50'); }
+      else if (aiInv.double > 0) {
+        aiInv.double--; boards[0].shot[y][x] = 9; const s2 = aiTarget(boards[0], level); boards[0].shot[y][x] = 0;
         const two = s2[0] !== x || s2[1] !== y, vol = { total: two ? 2 : 1, hits: 0, done: 0 };
         launch(0, x, y, { vol }); if (two) launch(0, s2[0], s2[1], { vol });
         say(foe() + ' يستخدم الضربة المزدوجة!', '#ff8a50');
@@ -1267,6 +1429,7 @@ function desiredCam() {
 function render(dt) {
   const [tg, yaw, pitch, dist] = desiredCam(), k = 1 - Math.exp(-dt * 2.5);
   camT.lerp(tg, k); camYaw += (yaw - camYaw) * k; camPitch += (pitch - camPitch) * k; camDist += (dist - camDist) * k;
+  if (![camT.x, camT.y, camT.z, camYaw, camPitch, camDist].every(Number.isFinite)) { camT.copy(tg); camYaw = yaw; camPitch = pitch; camDist = dist; }
   const sh = shake * shake * .5, jit = () => (Math.random() * 2 - 1) * sh;
   camera.position.set(camT.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + jit(), camT.y - Math.cos(camYaw) * Math.cos(camPitch) * camDist + jit(), camT.z + Math.sin(camPitch) * camDist + jit());
   camera.lookAt(camT.x + jit() * .5, camT.y + jit() * .5, camT.z);
@@ -1293,9 +1456,17 @@ function render(dt) {
     }
   }
   if (touchAim && phase === 'battle' && myTurn()) hover = touchAim;
-  ghost.forEach(g => g.visible = false); fills.forEach(f => f.visible = false); reticles.forEach(r => r.visible = false);
+  domes.forEach(d => d.visible = false);
+  if (phase === 'battle') boards[0].ships.forEach((q, i) => { if (!q.shield || q.sunk) return; const t = shipMatrix(0, q, time), d = domes[i]; d.position.set(t.pos[0], t.pos[1], 0); d.rotation.set(0, 0, t.rot[2]); d.scale.set(q.len * .55, .5, .55 + .05 * Math.sin(time * 3)); d.visible = true; });
+  radarMesh.visible = false;
+  if (radar && time < radar.until && phase === 'battle') { const c = cellCenter(1, radar.x, radar.y); radarMesh.position.set(c[0], c[1], wave(c[0], c[1], time) * .8); radarMesh.rotation.set(0, 0, time * 3); const k2 = Math.min(1, (time - radar.t0) * 3, (radar.until - time) * 2); radarMesh.scale.setScalar(1.6 * k2); radarMesh.visible = true; }
+  bzMesh.visible = false;
+  if (bz && time - bz.t0 < 2.6) { const a = time - bz.t0, up = Math.min(1, a * 3, (2.6 - a) * 3); bzMesh.position.set(bz.pos[0], bz.pos[1], bz.pos[2] + .1 + up * .35); bzMesh.rotation.set(0, 0, Math.PI / 2 + Math.sin(a * 2) * .2); bzMesh.scale.setScalar(2.2 * Math.max(.01, up)); bzMesh.visible = true; }
+  ghost.forEach(g => g.visible = false); fills.forEach(f => f.visible = false);
+  let fj = fills.length;
+  if (radar && time < radar.until && phase === 'battle') for (const mk of radar.marks) { const f = fills[--fj], c = cellCenter(1, mk.x, mk.y), pulse = .7 + .3 * Math.sin(time * 6); f.position.set(c[0], c[1], GRID_Z); f.scale.set(.45, .45, 1); f.rotation.set(0, 0, Math.PI / 4); f.material.uniforms.uCol.value.set(...(mk.has ? [1, .3, .15, .9 * pulse] : [.2, 1, .4, .55 * pulse])); f.visible = true; } reticles.forEach(r => r.visible = false);
   let fi = 0;
-  const fill = (b, x, y, col) => { if (fi >= fills.length) return; const f = fills[fi++], c = cellCenter(b, x, y); f.position.set(c[0], c[1], GRID_Z - .01); f.scale.set(.92, .92, 1); f.rotation.set(0, 0, 0); f.material.uniforms.uCol.value.set(...col); f.visible = true; };
+  const fill = (b, x, y, col) => { if (fi >= fills.length - 9) return; const f = fills[fi++], c = cellCenter(b, x, y); f.position.set(c[0], c[1], GRID_Z - .01); f.scale.set(.92, .92, 1); f.rotation.set(0, 0, 0); f.material.uniforms.uCol.value.set(...col); f.visible = true; };
   if (phase === 'place' && sel !== null && hover && hover[0] === 0 && !placeLocked()) {
     const [ax, ay] = anchor(sel, hover[1], hover[2]), ok = boards[0].fits(sel, ax, ay, horiz), gs = new Ship(sel, ax, ay, horiz);
     for (const [cx, cy] of gs.cells()) if (cx >= 0 && cx < 10 && cy >= 0 && cy < 10) fill(0, cx, cy, ok ? [.5, 1, .6, .3] : [1, .35, .3, .3]);
@@ -1348,6 +1519,12 @@ function labels() {
     if (tmpV.z > 1) { l.s.style.display = 'none'; continue; }
     l.s.style.display = ''; l.s.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-50%)`;
   }
+  for (const bb of bubbles.slice()) {
+    if (time > bb.die) { bb.el.remove(); bubbles.splice(bubbles.indexOf(bb), 1); continue; }
+    const vis = time > bb.born; bb.el.style.display = vis ? '' : 'none'; if (!vis) continue;
+    tmpV.set(bb.p[0], bb.p[1], bb.p[2] + (time - bb.born) * .25).project(camera);
+    bb.el.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-100%)`;
+  }
   const tip = $('tip'), showTip = hover && ((phase === 'battle' && hover[0] === 1 && myTurn()) || (phase === 'place' && hover[0] === 0));
   tip.hidden = !showTip || !!touchAim || (pointer.x >= 0 && matchMedia('(pointer:coarse)').matches);
   if (showTip) { const t = coord(hover[1], hover[2]); if (tip.textContent !== t) tip.textContent = t; tip.style.left = (pointer.x + 18) + 'px'; tip.style.top = (pointer.y + 14) + 'px'; }
@@ -1364,7 +1541,7 @@ function fleetList(ul, b) {
   if (ul.innerHTML !== html) ul.innerHTML = html;
 }
 function ui() {
-  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), power[0], pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
+  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
   if (sig === lastUi && !uiDirty) return; lastUi = sig; uiDirty = false;
   setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
   if (phase === 'place') {
@@ -1398,13 +1575,22 @@ function ui() {
     else if (waiting) { t = 'بانتظار رد الخصم...'; col = '#ffe79a'; }
     else if (shells.length || queue.length) { t = shells.length > 1 ? 'ضربة مزدوجة في الجو!' : 'قذيفة في الجو...'; col = '#ffe79a'; }
     else if (myTurn() && pick1) { t = 'اختر الهدف الثاني للضربة المزدوجة'; col = '#ffd84d'; }
-    else if (myTurn() && power[0] > 0) { t = 'باور أب! اختر هدفين للضربة المزدوجة'; col = '#ffd84d'; }
+    else if (armed === 'double') { t = 'اختر هدفين للضربة المزدوجة'; col = '#ffd84d'; }
+    else if (armed === 'radar') { t = 'اختر مكان الرادار في مياه ' + foe(); col = '#7dffa0'; }
+    else if (armed === 'shield') { t = 'اختر سفينة من أسطولك لتحميها بالدرع'; col = '#7fc8ff'; }
     else if (myTurn()) { t = 'دورك: اختر هدفا في مياه ' + foe(); col = '#9dffd0'; }
     else if (mode === 'online') { t = (NET.opp?.nick || 'الخصم') + ' يختار هدفه...'; col = '#ff8a70'; }
     else { t = 'العدو يصوب نحو أسطولك...'; col = '#ff8a70'; }
     $('bSpy').hidden = !isCaptain() || phase !== 'battle';
     $('bView').hidden = phase !== 'battle' || W / H >= 1.15; setText('bView', viewMine ? 'شبكة ' + foe() : 'شبكتي');
-    setText('banner', t); $('banner').style.color = col; $('banner').hidden = $('hint').hidden = phase === 'over';
+    setText('banner', t); $('banner').style.color = col;
+    let ih = '';
+    for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
+    if (!ih) ih = '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
+    if ($('invList').innerHTML !== ih) $('invList').innerHTML = ih;
+    $('inv').hidden = phase !== 'battle';
+    $('pick').hidden = !(pendingPick > 0 && phase === 'battle');
+    if (pendingPick > 0) { let ph = ''; for (const k of PW) { if (k === 'bazooka' && !giraffeAlive(0)) continue; ph += `<button data-act="pick" data-pw="${k}"><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><small>${PW_DESC[k]}</small></button>`; } if ($('pickList').innerHTML !== ph) $('pickList').innerHTML = ph; } $('banner').hidden = $('hint').hidden = phase === 'over';
   }
   if (phase === 'over') {
     $('overPanel').hidden = phaseT < 1;
@@ -1422,6 +1608,7 @@ function ui() {
 // ================================================================ buttons
 $('ui').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.act) { initAudio(); play('click', .6); switch (b.dataset.act) { case 'inv': b.id = 'bInv'; break; case 'pick': b.id = 'bPick'; break; } }
   initAudio(); play('click', .6);
   if (b.dataset.ship !== undefined) { const k = +b.dataset.ship, i = boards[0].ships.findIndex(s => s.kind === k); if (i >= 0) { horiz = boards[0].ships[i].h; boards[0].ships.splice(i, 1); } sel = k; uiDirty = true; return; }
   switch (b.id) {
@@ -1441,6 +1628,8 @@ $('ui').addEventListener('click', e => {
     case 'bClear': if (!placeLocked()) { boards[0] = new Board(); sel = 0; } break;
     case 'bStart': startOrReady(); break;
     case 'bOverMenu': goMenu(); break;
+    case 'bInv': { const k = b.dataset.pw; if (armed === k) armed = null; else if (inv[k] > 0) { armed = k; if (k === 'bazooka' && !giraffeAlive(0)) { armed = null; say('سفينة الزرافات غرقت!', '#ff8a70'); } } pick1 = null; break; }
+    case 'bPick': { const k = b.dataset.pw; inv[k]++; pendingPick = Math.max(0, pendingPick - 1); play('place', .8); say('حصلت على: ' + PW_NAME[k], '#ffd84d'); break; }
     case 'bSpy': cheat = !cheat; b.classList.toggle('on', cheat); break;
     case 'bView': viewMine = !viewMine; break;
     case 'bAgain': if (mode === 'online') netRematch(); else goPlace(); break;
@@ -1455,6 +1644,24 @@ if (STANDALONE) {
   if (/^[a-z0-9]{3,8}$/.test(hc)) { $('code').value = hc; setTimeout(() => setPhase('lobby'), 0); }
 }
 function inviteLink(code) { return location.origin + location.pathname + '#' + code; }
+
+// ================================================================ power-up icons (small 3D renders)
+const ICONS = {};
+function renderIcon(model, yaw, pitch) {
+  const sc = new T.Scene(), g = model.geo(), m = new T.Mesh(g, pwMat()); sc.add(m);
+  const l = new T.DirectionalLight(0xfff0dd, 1); l.position.set(1, -1, 2); sc.add(l); const h = new T.HemisphereLight(0x9ab4dd, 0x302820, .9); h.position.set(0, 0, 1); sc.add(h);
+  g.computeBoundingSphere(); const bs = g.boundingSphere, cam = new T.PerspectiveCamera(30, 1, .01, 50), d = bs.radius / Math.sin(15 * Math.PI / 180) * 1.05;
+  cam.up.set(0, 0, 1); cam.position.set(bs.center.x + Math.sin(yaw) * Math.cos(pitch) * d, bs.center.y - Math.cos(yaw) * Math.cos(pitch) * d, bs.center.z + Math.sin(pitch) * d); cam.lookAt(bs.center);
+  const S = 128, t = new T.WebGLRenderTarget(S, S), px = new Uint8Array(S * S * 4);
+  renderer.setRenderTarget(t); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(sc, cam); renderer.readRenderTargetPixels(t, 0, 0, S, S, px); renderer.setRenderTarget(null);
+  const c = document.createElement('canvas'); c.width = c.height = S; const ctx = c.getContext('2d'), img = ctx.createImageData(S, S);
+  for (let y = 0; y < S; y++) img.data.set(px.subarray((S - 1 - y) * S * 4, (S - y) * S * 4), y * S * 4);
+  ctx.putImageData(img, 0, 0); t.dispose(); g.dispose(); return c.toDataURL();
+}
+try {
+  ICONS.double = renderIcon(shellModel(), .5, .35); ICONS.radar = renderIcon(radarModel(), .7, .3);
+  ICONS.shield = renderIcon(shieldModel(), .25, .1); ICONS.bazooka = renderIcon(bazookaGiraffe(), 1.35, .15);
+} catch (e) { console.warn('icons', e); }
 
 // ================================================================ boot
 resize();
