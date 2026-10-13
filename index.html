@@ -155,7 +155,7 @@ input:focus{outline:2px solid var(--amber)}
     <div class="panel col" id="menuPanel">
       <button id="bAI">معركة ضد الكمبيوتر</button>
       <button id="bOnline">العب مع صديق أونلاين</button>
-      <button id="bLevel">الصعوبة: عادي</button>
+      <div class="row"><button id="bLevel">الصعوبة: عادي</button><button id="bSize">الخريطة: وسط</button></div>
       <div class="row"><button id="bSound">صوت: يعمل</button><button id="bMusic">موسيقى: تعمل</button></div>
     </div>
     <div id="foot">الإصدار 1.0 للمتصفح · موسيقى وأصوات مولّدة داخل اللعبة</div>
@@ -237,15 +237,16 @@ const vlen = a => Math.hypot(a[0], a[1], a[2]), vnorm = a => { const l = vlen(a)
 const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 
 // ================================================================ rules
-const N = 10, LENS = [5, 4, 3, 3, 2, 3, 3], NK = LENS.length;
+let N = 10; const SIZES = [8, 10, 14], SIZE_NAMES = ['صغيرة', 'وسط', 'كبيرة'], LENS = [5, 4, 3, 3, 2, 3, 3], NK = LENS.length;
 const NAMES = ['حاملة الطائرات', 'البارجة', 'الطراد', 'الغواصة', 'المدمرة', 'سفينة البرتقال', 'سفينة الزرافات'];
 const ADJ = ['المعادية', 'المعادية', 'المعادي', 'المعادية', 'المعادية', 'المعادية', 'المعادية'];
-const ROWS = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر'];
+const ROWS = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر', 'ز', 'س', 'ش', 'ص'];
+const e36 = n => n.toString(36), d36 = c => parseInt(c, 36);
 const LEVELS = ['سهل', 'عادي', 'صعب'];
 const coord = (x, y) => ROWS[y] + (x + 1);
-const BC = [[-6.5, 0], [6.5, 0]], GRID_Z = 0.15;
-const cellCenter = (b, x, y) => [BC[b][0] + x - 4.5, BC[b][1] + 4.5 - y];
-function cellAt(b, px, py) { const lx = px - (BC[b][0] - 5), ly = (BC[b][1] + 5) - py; return lx >= 0 && lx < 10 && ly >= 0 && ly < 10 ? [lx | 0, ly | 0] : null; }
+const BC = [[-6.5, 0], [6.5, 0]], GRID_Z = 0.15, H5 = () => N / 2, SC = () => N / 10;
+const cellCenter = (b, x, y) => [BC[b][0] + x - (N - 1) / 2, BC[b][1] + (N - 1) / 2 - y];
+function cellAt(b, px, py) { const lx = px - (BC[b][0] - N / 2), ly = (BC[b][1] + N / 2) - py; return lx >= 0 && lx < N && ly >= 0 && ly < N ? [lx | 0, ly | 0] : null; }
 
 class Ship {
   constructor(kind, x, y, h) { this.kind = kind; this.x = x; this.y = y; this.h = h; this.hits = 0; this.sealed = 0; this.shield = false; this.sink = 0; this.hold = false; }
@@ -254,10 +255,10 @@ class Ship {
   get sunk() { let n = 0, b = this.hits | this.sealed; while (b) { n += b & 1; b >>= 1; } return n === this.len; }
 }
 class Board {
-  constructor() { this.ships = []; this.shot = [...Array(10)].map(() => Array(10).fill(0)); }
-  static random() { const b = new Board(); for (let k = 0; k < NK; k++) for (;;) { const h = Math.random() < .5, x = ri(10), y = ri(10); if (b.fits(k, x, y, h)) { b.ships.push(new Ship(k, x, y, h)); break; } } return b; }
+  constructor() { this.ships = []; this.shot = [...Array(N)].map(() => Array(N).fill(0)); }
+  static random() { const b = new Board(); for (let k = 0; k < NK; k++) for (;;) { const h = Math.random() < .5, x = ri(N), y = ri(N); if (b.fits(k, x, y, h)) { b.ships.push(new Ship(k, x, y, h)); break; } } return b; }
   shipAt(x, y) { return this.ships.findIndex(s => s.cells().some(c => c[0] === x && c[1] === y)); }
-  fits(k, x, y, h, skip = -1) { return new Ship(k, x, y, h).cells().every(([cx, cy]) => cx >= 0 && cx < 10 && cy >= 0 && cy < 10 && this.ships.every((s, i) => i === skip || !s.cells().some(c => c[0] === cx && c[1] === cy))); }
+  fits(k, x, y, h, skip = -1) { return new Ship(k, x, y, h).cells().every(([cx, cy]) => cx >= 0 && cx < N && cy >= 0 && cy < N && this.ships.every((s, i) => i === skip || !s.cells().some(c => c[0] === cx && c[1] === cy))); }
   fire(x, y) {
     const i = this.shipAt(x, y);
     if (i < 0) { this.shot[y][x] = 1; return { r: 'M' }; }
@@ -280,8 +281,8 @@ function defend(board, x, y) {
   return board.fire(x, y);
 }
 function aiTarget(b, level) {
-  const k = b.known(), at = (x, y) => x >= 0 && x < 10 && y >= 0 && y < 10 ? k[y][x] : -1;
-  const all = []; for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) all.push([x, y]);
+  const k = b.known(), at = (x, y) => x >= 0 && x < N && y >= 0 && y < N ? k[y][x] : -1;
+  const all = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) all.push([x, y]);
   const unknown = all.filter(([x, y]) => at(x, y) === 0), hits = all.filter(([x, y]) => at(x, y) === 2);
   const pick = a => a.length ? a[ri(a.length)] : null, D = [[1, 0], [-1, 0], [0, 1], [0, -1]];
   const around = () => { const v = []; for (const [x, y] of hits) for (const [dx, dy] of D) if (at(x + dx, y + dy) === 0 && !v.some(c => c[0] === x + dx && c[1] === y + dy)) v.push([x + dx, y + dy]); return v; };
@@ -294,7 +295,7 @@ function aiTarget(b, level) {
     }
     return pick(unknown.filter(([x, y]) => (x + y) % 2 === 0)) || pick(unknown) || [0, 0];
   }
-  const alive = b.ships.filter(s => !s.sunk).map(s => s.len), w = [...Array(10)].map(() => Array(10).fill(0)), target = hits.length > 0;
+  const alive = b.ships.filter(s => !s.sunk).map(s => s.len), w = [...Array(N)].map(() => Array(N).fill(0)), target = hits.length > 0;
   for (const len of alive) for (const h of [true, false]) for (const [x0, y0] of all) {
     const cells = []; for (let i = 0; i < len; i++) cells.push(h ? [x0 + i, y0] : [x0, y0 + i]);
     if (cells.some(([x, y]) => { const v = at(x, y); return v === -1 || v === 1 || v === 3; })) continue;
@@ -702,16 +703,21 @@ const glowMat = () => new T.ShaderMaterial({
   fragmentShader: `uniform float uAlpha;varying vec4 vC;varying vec2 vUv;void main(){float a=pow(max(0.,1.-abs(vUv.y-.5)*2.),1.5);gl_FragColor=vec4(vC.rgb,vC.a*a*uAlpha);}`,
   transparent: true, depthWrite: false, blending: T.AdditiveBlending
 });
-const grids = [0, 1].map(b => {
-  const c = BC[b], col = b === 0 ? [.25, 1, .75, .55] : [1, .45, .22, .55], P = [], U = [], C = [], I = [];
+const grids = [];
+function buildGrid(b) {
+  const c = BC[b], hh = N / 2, col = b === 0 ? [.25, 1, .75, .55] : [1, .45, .22, .55], P = [], U = [], C = [], I = [];
   const line = (ax, ay, ex, ey, w, cl) => { const l = Math.hypot(ex - ax, ey - ay), dx = (ex - ax) / l, dy = (ey - ay) / l, nx = -dy * w / 2, ny = dx * w / 2, base = P.length / 3;
     [[ax - nx, ay - ny, 0], [ex - nx, ey - ny, 0], [ex + nx, ey + ny, 1], [ax + nx, ay + ny, 1]].forEach(([x, y, v]) => { P.push(x, y, GRID_Z); U.push(.5, v); C.push(...cl); });
     I.push(base, base + 1, base + 2, base, base + 2, base + 3); };
-  for (let i = 0; i <= 10; i++) { const k = i - 5, e = i === 0 || i === 10, w = e ? .1 : .045, cl = e ? [col[0], col[1], col[2], .82] : col; line(c[0] + k, c[1] - 5, c[0] + k, c[1] + 5, w, cl); line(c[0] - 5, c[1] + k, c[0] + 5, c[1] + k, w, cl); }
-  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const px = c[0] + 5.25 * sx, py = c[1] + 5.25 * sy, cl = [col[0], col[1], col[2], .88]; line(px, py, px - sx * .9, py, .08, cl); line(px, py, px, py - sy * .9, .08, cl); }
+  for (let i = 0; i <= N; i++) { const k = i - hh, e = i === 0 || i === N, w = e ? .1 : .045, cl = e ? [col[0], col[1], col[2], .82] : col; line(c[0] + k, c[1] - hh, c[0] + k, c[1] + hh, w, cl); line(c[0] - hh, c[1] + k, c[0] + hh, c[1] + k, w, cl); }
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const px = c[0] + (hh + .25) * sx, py = c[1] + (hh + .25) * sy, cl = [col[0], col[1], col[2], .88]; line(px, py, px - sx * .9, py, .08, cl); line(px, py, px, py - sy * .9, .08, cl); }
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(U, 2)); g.setAttribute('aCol', new T.Float32BufferAttribute(C, 4)); g.setIndex(I);
-  const m = new T.Mesh(g, glowMat()); m.renderOrder = 3; m.frustumCulled = false; scene.add(m); return m;
-});
+  if (grids[b]) { scene.remove(grids[b]); grids[b].geometry.dispose(); }
+  const m = new T.Mesh(g, glowMat()); m.renderOrder = 3; m.frustumCulled = false; scene.add(m); grids[b] = m;
+}
+function setSize(n) { if (n === N && grids.length) return; N = n; BC[0][0] = -(N / 2 + 1.5); BC[1][0] = N / 2 + 1.5; buildGrid(0); buildGrid(1); }
+let sizeIdx = store.get('bs-size') ?? 1; if (!(sizeIdx >= 0 && sizeIdx < 3)) sizeIdx = 1;
+setSize(10);
 
 // cell highlights and the targeting reticle
 const decalMat = mode => new T.ShaderMaterial({
@@ -1007,8 +1013,8 @@ const vkey = (b, x, y) => b * 100 + y * 10 + x;
 
 function say(text, col) { const m = $('msg'); m.textContent = text; m.style.color = col; m.classList.remove('show'); void m.offsetWidth; m.classList.add('show'); }
 function setPhase(p) { phase = p; phaseT = 0; for (const s of ['menu', 'lobby', 'place', 'battle', 'over']) $('s-' + s).hidden = s !== p && !(p === 'over' && s === 'battle'); music.want = p === 'over' ? null : p === 'place' ? 'brief' : p === 'battle' ? 'battle' : 'menu'; syncMusic(); uiDirty = true; }
-function goMenu() { netLeave(); mode = 'ai'; boards = [Board.random(), new Board()]; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('menu'); }
-function goPlace() { boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
+function goMenu() { setSize(10); netLeave(); mode = 'ai'; boards = [Board.random(), new Board()]; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('menu'); }
+function goPlace() { if (mode === 'ai' || !NET.room) setSize(SIZES[sizeIdx]); else if (!NET.opp || !SIZES.includes(NET.opp.n) || (NET.opp.j || 0) > NET.joined) setSize(SIZES[sizeIdx]); boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
 function startBattle() {
   if (mode === 'ai') boards[1] = Board.random();
   streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
@@ -1032,16 +1038,16 @@ function shipMatrix(b, s, t) {
 function placeRadar(x, y) {
   let ships = [];
   if (mode === 'ai') ships = boards[1].ships;
-  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) ships.push(new Ship(+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1')); }
+  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) ships.push(new Ship(+f[i], d36(f[i + 1]), d36(f[i + 2]), f[i + 3] === '1')); }
   const marks = [];
-  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = x + dx, cy = y + dy; if (cx < 0 || cy < 0 || cx > 9 || cy > 9) continue; marks.push({ x: cx, y: cy, has: ships.some(q => q.cells().some(c => c[0] === cx && c[1] === cy)) }); }
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const cx = x + dx, cy = y + dy; if (cx < 0 || cy < 0 || cx >= N || cy >= N) continue; marks.push({ x: cx, y: cy, has: ships.some(q => q.cells().some(c => c[0] === cx && c[1] === cy)) }); }
   radar = { x, y, marks, t0: time, until: time + 7 };
   play('ping', .8); say(marks.some(m => m.has) ? 'الرادار رصد سفنا قريبة!' : 'الرادار: لا شيء حول هذه النقطة', '#7dffa0');
 }
 function fireBazooka() {
   let cells = [];
   if (mode === 'ai') cells = boards[1].ships.flatMap(q => q.cells());
-  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) cells.push(...new Ship(+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1').cells()); }
+  else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) cells.push(...new Ship(+f[i], d36(f[i + 1]), d36(f[i + 2]), f[i + 3] === '1').cells()); }
   cells = cells.filter(([x, y]) => boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(q => q[0] === x && q[1] === y)));
   if (!cells.length || !giraffeAlive(0)) { play('click', .4); return; }
   inv.bazooka--; uiDirty = true;
@@ -1057,7 +1063,7 @@ function launch(target, x, y, extra = {}) {
     const alive = boards[0].ships.filter(s => !s.sunk), s = alive[ri(alive.length)] || boards[0].ships[0], m = shipMatrix(0, s, time);
     const o = new T.Object3D(); o.position.set(...m.pos); o.rotation.set(m.rot[0], m.rot[1], m.rot[2], 'ZYX'); o.updateMatrix();
     const v = new T.Vector3(s.len * .22, 0, .42).applyMatrix4(o.matrix); from = [v.x, v.y, v.z];
-  } else from = [BC[1][0] + rnd(-4.5, 4.5), rnd(7, 9.5), .35];
+  } else from = [BC[1][0] + rnd(-H5() + .5, H5() - .5), H5() + rnd(2, 4.5), .35];
   if (extra.from) from = extra.from;
   const dist = vlen(vsub(to, from));
   fx.muzzle(from, vadd(vmul(vnorm(vsub(to, from)), .5), [0, 0, .5]));
@@ -1113,7 +1119,7 @@ const NET = {
   save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, dbl: this.dbl, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, shots: this.shots.map(([x, y]) => '' + x + y).join(''), d: this.dbl.join(','), res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
@@ -1123,7 +1129,7 @@ const NET = {
   },
   same() { const o = this.opp; return !!o && o.round === this.round; },
   first() { const o = this.opp; return !!o && this.seat < o.seat; },
-  oShots() { const s = String(this.opp?.shots || ''), out = []; for (let i = 0; i + 1 < s.length; i += 2) { const x = +s[i], y = +s[i + 1]; if (x >= 0 && x < 10 && y >= 0 && y < 10) out.push([x, y]); } return out; },
+  oShots() { const s = String(this.opp?.shots || ''), out = []; for (let i = 0; i + 1 < s.length; i += 2) { const x = d36(s[i]), y = d36(s[i + 1]); if (x >= 0 && x < N && y >= 0 && y < N) out.push([x, y]); } return out; },
   oRes() { return parseRes(String(this.opp?.res || '')); },
   oDbl() { return new Set(String(this.opp?.d || '').split(',').filter(v => v !== '').map(Number)); },
   myTurn() {
@@ -1144,12 +1150,12 @@ function parseRes(s) {
     const c = s[i];
     if (c === 'M') { out.push({ r: 'M' }); i++; }
     else if (c === 'H') { const k = s[i + 1]; if (k >= '0' && k <= '9') { out.push({ r: 'H', kind: +k }); i += 2; } else { out.push({ r: 'H' }); i++; } }
-    else if (c === 'S' && i + 4 < s.length) { const k = +s[i + 1], x = +s[i + 2], y = +s[i + 3], h = s[i + 4] === '1'; if (k >= 0 && k < NK) out.push({ r: 'S', ship: { kind: k, x, y, h } }); i += 5; }
+    else if (c === 'S' && i + 4 < s.length) { const k = +s[i + 1], x = d36(s[i + 2]), y = d36(s[i + 3]), h = s[i + 4] === '1'; if (k >= 0 && k < NK) out.push({ r: 'S', ship: { kind: k, x, y, h } }); i += 5; }
     else break;
   }
   return out;
 }
-const encRes = o => o.r === 'S' ? 'S' + o.ship.kind + o.ship.x + o.ship.y + (o.ship.h ? 1 : 0) : o.r === 'H' ? 'H' + (o.kind ?? 0) : 'M';
+const encRes = o => o.r === 'S' ? 'S' + o.ship.kind + e36(o.ship.x) + e36(o.ship.y) + (o.ship.h ? 1 : 0) : o.r === 'H' ? 'H' + (o.kind ?? 0) : 'M';
 
 // Local stand-in for the room when the page runs outside claude.ai (two tabs on one machine).
 function mockRoom() {
@@ -1238,7 +1244,7 @@ async function netJoin(code) {
   if (!api) { lobbyStatus('اللعب أونلاين يعمل فقط عند فتح الصفحة من claude.ai بحساب مدعو إليها', '#ffb0a0'); return; }
   let r; try { r = await api.join('bs-' + code); } catch (e) { lobbyStatus('تعذر دخول الغرفة، حاول مرة أخرى' + (e && e.code ? ' (' + e.code + ')' : ''), '#ffb0a0'); return; }
   netLeave();
-  NET.room = r; NET.code = code; NET.nick = ($('nick').value.trim() || 'قبطان').slice(0, 20); store.set('bs-nick', NET.nick);
+  NET.room = r; NET.code = code; NET.joined = Date.now(); NET.nick = ($('nick').value.trim() || 'قبطان').slice(0, 20); store.set('bs-nick', NET.nick);
   const saved = store.get(NET.key());
   mode = 'online'; boards = [new Board(), new Board()]; fx.ps = []; queue.length = 0; pendingVis.clear(); shells = []; stats = [[0, 0], [0, 0]];
   if (saved && saved.seat) {
@@ -1269,7 +1275,10 @@ function netTick() {
   if (mode !== 'online' || !NET.room) return;
   NET.opp = NET.oppState(); uiDirty = true;
   if (!NET.same()) return;
-  if (phase === 'place' && NET.ready && NET.opp.ready && boards[0].ships.length === NK) { netRestoreBattle(); startBattle(); }
+  if (phase === 'place' && SIZES.includes(NET.opp.n) && NET.opp.n !== N && (NET.opp.j || 0) < NET.joined) {
+    setSize(NET.opp.n); NET.ready = false; boards = [new Board(), new Board()]; sel = 0; NET.push(); say('حجم الخريطة: ' + SIZE_NAMES[SIZES.indexOf(N)] + ' (من صديقك)', '#9dffd9');
+  }
+  if (phase === 'place' && NET.ready && NET.opp.ready && NET.opp.n === N && boards[0].ships.length === NK) { netRestoreBattle(); startBattle(); }
   if (phase !== 'battle' && phase !== 'over') return;
   // answer every new shot at us right away; the shell animation shows it a moment later
   const theirs = NET.oShots();
@@ -1284,7 +1293,7 @@ function netTick() {
   if (changed) NET.push();
   if (phase === 'over' && NET.opp.fleet) {
     const f = String(NET.opp.fleet);
-    for (let i = 0; i + 3 < f.length; i += 4) { const k = +f[i]; if (k >= 0 && k < NK && !boards[1].ships.some(s => s.kind === k)) { const s = new Ship(k, +f[i + 1], +f[i + 2], f[i + 3] === '1'); s.cells().forEach(([cx, cy], j) => { if (boards[1].shot[cy]?.[cx] === 2) s.hits |= 1 << j; }); boards[1].ships.push(s); } }
+    for (let i = 0; i + 3 < f.length; i += 4) { const k = +f[i]; if (k >= 0 && k < NK && !boards[1].ships.some(s => s.kind === k)) { const s = new Ship(k, d36(f[i + 1]), d36(f[i + 2]), f[i + 3] === '1'); s.cells().forEach(([cx, cy], j) => { if (boards[1].shot[cy]?.[cx] === 2) s.hits |= 1 << j; }); boards[1].ships.push(s); } }
   }
 }
 function netRematch() { NET.round++; NET.ready = false; NET.shots = []; NET.dbl = []; NET.res = []; NET.inc = []; NET.reveal = false; goPlace(); NET.push(); }
@@ -1330,7 +1339,7 @@ function groundHit(px, py) {
 function update(dt) {
   time += dt; phaseT += dt; fx.update(dt); shake = Math.max(0, shake - dt * .9);
   for (const b of boards) for (const s of b.ships) if (s.sunk && !s.hold && s.sink < 1) s.sink = Math.min(1, s.sink + dt / 5);
-  for (let b = 0; b < 2; b++) for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) {
+  for (let b = 0; b < 2; b++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     if (boards[b].shot[y][x] !== 2 || pendingVis.has(vkey(b, x, y))) continue;
     const i = boards[b].shipAt(x, y), s = i >= 0 ? boards[b].ships[i] : null, sink = s ? ease(s.sink) : 0, dead = s && s.sunk;
     const p = cellCenter(b, x, y), z = b === 1 && !dead ? .42 : .24 - sink * .25;
@@ -1414,16 +1423,16 @@ function update(dt) {
 const tmpO = new T.Object3D(), tmpV = new T.Vector3();
 function desiredCam() {
   const asp = W / H, tan = Math.tan(22.5 * Math.PI / 180), narrow = asp < 1.15;
-  if (phase === 'menu' || phase === 'lobby') return [new T.Vector3(-6.5, 0, .9), .6 + time * .06, .06, 11];
+  if (phase === 'menu' || phase === 'lobby') return [new T.Vector3(BC[0][0], 0, .9), .6 + time * .06, .06, 11];
   if (phase === 'place') {
-    if (W <= 760 || narrow) { const d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.15; return [new T.Vector3(-6.5, -2.6, 0), 0, .95, d]; }
+    if (W <= 760 || narrow) { const d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.15 * SC(); return [new T.Vector3(BC[0][0], -2.6 * SC(), 0), 0, .95, d]; }
     // keep the board centred in the space left of the fleet panel
-    const pf = Math.min(.45, 400 / W), d = Math.max(6.4 / tan, 12 / (1 - pf) * 1.12 / (2 * tan * asp)) * 1.05;
-    return [new T.Vector3(-6.5 + pf * d * tan * asp, .6, 0), 0, .95, d];
+    const pf = Math.min(.45, 400 / W), d = Math.max(6.4 / tan, 12 / (1 - pf) * 1.12 / (2 * tan * asp)) * 1.05 * SC();
+    return [new T.Vector3(BC[0][0] + pf * d * tan * asp, .6 * SC(), 0), 0, .95, d];
   }
-  if (narrow) { const b = phase === 'battle' ? (viewMine ? 0 : myTurn() || touchAim || shells.some(q => q.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom; return [new T.Vector3(BC[b][0], -1.4, 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
-  const d = Math.max(13.6 / (tan * asp), 7.2 / tan) * 1.3;
-  if (phase === 'battle') return [new T.Vector3(myTurn() ? .6 : -.6, -1.1, 0), userYaw, clamp(.92 + userPitch, .35, 1.45), d * zoom];
+  if (narrow) { const b = phase === 'battle' ? (viewMine ? 0 : myTurn() || touchAim || shells.some(q => q.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom * SC(); return [new T.Vector3(BC[b][0], -1.4 * SC(), 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
+  const d = Math.max((N + 3.6) / (tan * asp), 7.6 * SC() / tan) * 1.3;
+  if (phase === 'battle') return [new T.Vector3(myTurn() ? .6 : -.6, -1.9 * SC(), 0), userYaw, clamp(1.0 + userPitch, .35, 1.45), d * zoom];
   return [new T.Vector3(0, -1, 0), userYaw + Math.sin(phaseT * .05) * .5, clamp(.7 + userPitch, .3, 1.4), d * zoom];
 }
 function render(dt) {
@@ -1449,7 +1458,7 @@ function render(dt) {
   if (cheat && isCaptain() && (phase === 'battle' || phase === 'place')) {
     let list = [];
     if (mode === 'ai') list = boards[1].ships.map(s => [s.kind, s.x, s.y, s.h]);
-    else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) list.push([+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1']); }
+    else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) list.push([+f[i], d36(f[i + 1]), d36(f[i + 2]), f[i + 3] === '1']); }
     for (const [kd, x, y, h] of list) {
       if (!(kd >= 0 && kd < NK) || boards[1].ships.some(q => q.kind === kd && q.sunk && !q.hold)) continue;
       const t = shipMatrix(1, new Ship(kd, x, y, h), time), m = spy[kd]; m.position.set(...t.pos); m.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'ZYX'); m.visible = true;
@@ -1469,7 +1478,7 @@ function render(dt) {
   const fill = (b, x, y, col) => { if (fi >= fills.length - 9) return; const f = fills[fi++], c = cellCenter(b, x, y); f.position.set(c[0], c[1], GRID_Z - .01); f.scale.set(.92, .92, 1); f.rotation.set(0, 0, 0); f.material.uniforms.uCol.value.set(...col); f.visible = true; };
   if (phase === 'place' && sel !== null && hover && hover[0] === 0 && !placeLocked()) {
     const [ax, ay] = anchor(sel, hover[1], hover[2]), ok = boards[0].fits(sel, ax, ay, horiz), gs = new Ship(sel, ax, ay, horiz);
-    for (const [cx, cy] of gs.cells()) if (cx >= 0 && cx < 10 && cy >= 0 && cy < 10) fill(0, cx, cy, ok ? [.5, 1, .6, .3] : [1, .35, .3, .3]);
+    for (const [cx, cy] of gs.cells()) if (cx >= 0 && cx < N && cy >= 0 && cy < N) fill(0, cx, cy, ok ? [.5, 1, .6, .3] : [1, .35, .3, .3]);
     const g = ghost[sel], t = shipMatrix(0, gs, time); g.position.set(...t.pos); g.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'ZYX'); g.material.color.setRGB(...(ok ? [.5, 1, .6] : [1, .35, .3])); g.visible = true;
   }
   if (phase === 'battle' && myTurn() && !shells.length && !queue.length && hover && hover[0] === 1) {
@@ -1484,7 +1493,7 @@ function render(dt) {
   grids.forEach((g, b) => { g.material.uniforms.uAlpha.value = ga[b]; g.visible = ga[b] > .01; });
   // pegs
   const counts = [0, 0];
-  for (let b = 0; b < 2; b++) for (let y = 0; y < 10; y++) for (let x = 0; x < 10; x++) {
+  for (let b = 0; b < 2; b++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const v = boards[b].shot[y][x]; if (!v || pendingVis.has(vkey(b, x, y))) continue;
     let type; if (v === 1) type = 0; else if (b === 1) { const i = boards[1].shipAt(x, y); if (i >= 0 && boards[1].ships[i].sunk) continue; type = 1; } else continue;
     const c = cellCenter(b, x, y), h = wave(c[0], c[1], time), tilt = (wave(c[0] + .2, c[1], time) - h) * 2;
@@ -1505,16 +1514,16 @@ function render(dt) {
 const labelBox = $('labels'), lab = [];
 for (let b = 0; b < 2; b++) {
   const col = b === 0 ? '#80ffd9' : '#ffa673';
-  for (let i = 0; i < 10; i++) { for (const kind of ['n', 'r']) { const s = document.createElement('span'); s.textContent = kind === 'n' ? String(i + 1) : ROWS[i]; s.style.color = col; labelBox.appendChild(s); lab.push({ s, b, i, kind }); } }
+  for (let i = 0; i < 14; i++) { for (const kind of ['n', 'r']) { const s = document.createElement('span'); s.textContent = kind === 'n' ? String(i + 1) : ROWS[i]; s.style.color = col; labelBox.appendChild(s); lab.push({ s, b, i, kind }); } }
   const t = document.createElement('span'); t.className = 'ttl'; t.style.color = col; labelBox.appendChild(t); lab.push({ s: t, b, kind: 't' });
 }
 function labels() {
   const show = phase === 'place' || phase === 'battle';
   for (const l of lab) {
-    const on = show && !(phase === 'place' && l.b === 1) && !(l.kind === 't' && phase !== 'battle');
+    const on = show && !(l.i >= N) && !(phase === 'place' && l.b === 1) && !(l.kind === 't' && phase !== 'battle');
     if (!on) { if (l.s.style.display !== 'none') l.s.style.display = 'none'; continue; }
     const c = BC[l.b];
-    if (l.kind === 'n') tmpV.set(c[0] - 4.5 + l.i, c[1] + 5.55, GRID_Z); else if (l.kind === 'r') tmpV.set(c[0] + 5.55, c[1] + 4.5 - l.i, GRID_Z); else { tmpV.set(c[0], c[1] + 6.6, GRID_Z); const t = l.b === 0 ? 'أسطولك' : mode === 'online' ? 'مياه الخصم' : 'مياه العدو'; if (l.s.textContent !== t) l.s.textContent = t; }
+    if (l.kind === 'n') tmpV.set(c[0] - (N - 1) / 2 + l.i, c[1] + N / 2 + .55, GRID_Z); else if (l.kind === 'r') tmpV.set(c[0] + N / 2 + .55, c[1] + (N - 1) / 2 - l.i, GRID_Z); else { tmpV.set(c[0], c[1] + N / 2 + 1.6, GRID_Z); const t = l.b === 0 ? 'أسطولك' : mode === 'online' ? 'مياه الخصم' : 'مياه العدو'; if (l.s.textContent !== t) l.s.textContent = t; }
     tmpV.project(camera);
     if (tmpV.z > 1) { l.s.style.display = 'none'; continue; }
     l.s.style.display = ''; l.s.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-50%)`;
@@ -1543,7 +1552,7 @@ function fleetList(ul, b) {
 function ui() {
   const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
   if (sig === lastUi && !uiDirty) return; lastUi = sig; uiDirty = false;
-  setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
+  setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSize', 'الخريطة: ' + SIZE_NAMES[sizeIdx]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
   if (phase === 'place') {
     const list = $('shipList'); let html = '';
     for (let k = 0; k < NK; k++) { const placed = boards[0].ships.some(s => s.kind === k); let pips = ''; for (let i = 0; i < LENS[k]; i++) pips += `<i class="${placed ? 'ok' : ''}"></i>`; html += `<button data-ship="${k}" class="${sel === k ? 'sel' : ''}" ${placeLocked() ? 'disabled' : ''}><span>${NAMES[k]}</span><div class="pips">${pips}</div></button>`; }
@@ -1615,6 +1624,7 @@ $('ui').addEventListener('click', e => {
     case 'bAI': mode = 'ai'; goPlace(); break;
     case 'bOnline': setPhase('lobby'); lobbyStatus(''); break;
     case 'bLevel': level = (level + 1) % 3; store.set('bs-level', level); break;
+    case 'bSize': sizeIdx = (sizeIdx + 1) % 3; store.set('bs-size', sizeIdx); break;
     case 'bSound': soundOn = !soundOn; store.set('bs-sound', soundOn); applyVolumes(); break;
     case 'bMusic': musicOn = !musicOn; store.set('bs-music', musicOn); applyVolumes(); break;
     case 'bJoin': netJoin($('code').value); break;
