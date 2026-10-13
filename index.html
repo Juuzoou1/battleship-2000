@@ -65,7 +65,7 @@ input:focus{outline:2px solid var(--amber)}
 .code{font:400 24px var(--f-latin);letter-spacing:.2em;direction:ltr}
 
 /* placement */
-#placePanel{right:24px;top:90px;width:340px;--acc:var(--mint)}
+#placePanel{right:24px;top:80px;width:340px;max-height:calc(100vh - 100px);overflow:auto;box-sizing:border-box;--acc:var(--mint)}
 #shipList{display:flex;flex-direction:column;gap:8px}
 #shipList button{display:flex;justify-content:space-between;align-items:center;text-align:right;padding:10px 12px}
 .pips{display:flex;gap:4px;direction:ltr}.pips i{width:15px;height:15px;border:1.5px solid #000c;background:#8b96a3}
@@ -78,8 +78,8 @@ input:focus{outline:2px solid var(--amber)}
 .fleet{bottom:18px;width:290px;padding:14px 16px 12px}
 #fleetMe{left:18px;--acc:var(--mint)}#fleetFoe{right:18px;--acc:#ff8a5a}
 .fleet .hdr{font-size:20px}
-.fleet ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
-.fleet li{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:16px}
+.fleet ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+.fleet li{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px}
 .fleet li.dead span{color:#b08a80;text-decoration:line-through 2.5px #ff4a32}
 #stats{position:absolute;left:50%;transform:translateX(-50%);bottom:40px;padding:8px 18px;background:linear-gradient(#000d1fd0,#000510d0);border:1.5px solid #64d8ff99;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
 #hint{position:absolute;left:0;right:0;bottom:10px;text-align:center;color:#cfe1ff99;font-size:13px}
@@ -217,9 +217,9 @@ const vlen = a => Math.hypot(a[0], a[1], a[2]), vnorm = a => { const l = vlen(a)
 const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 
 // ================================================================ rules
-const N = 10, LENS = [5, 4, 3, 3, 2];
-const NAMES = ['حاملة الطائرات', 'البارجة', 'الطراد', 'الغواصة', 'المدمرة'];
-const ADJ = ['المعادية', 'المعادية', 'المعادي', 'المعادية', 'المعادية'];
+const N = 10, LENS = [5, 4, 3, 3, 2, 3, 3], NK = LENS.length;
+const NAMES = ['حاملة الطائرات', 'البارجة', 'الطراد', 'الغواصة', 'المدمرة', 'سفينة البرتقال', 'سفينة الزرافات'];
+const ADJ = ['المعادية', 'المعادية', 'المعادي', 'المعادية', 'المعادية', 'المعادية', 'المعادية'];
 const ROWS = ['أ', 'ب', 'ت', 'ث', 'ج', 'ح', 'خ', 'د', 'ذ', 'ر'];
 const LEVELS = ['سهل', 'عادي', 'صعب'];
 const coord = (x, y) => ROWS[y] + (x + 1);
@@ -235,7 +235,7 @@ class Ship {
 }
 class Board {
   constructor() { this.ships = []; this.shot = [...Array(10)].map(() => Array(10).fill(0)); }
-  static random() { const b = new Board(); for (let k = 0; k < 5; k++) for (;;) { const h = Math.random() < .5, x = ri(10), y = ri(10); if (b.fits(k, x, y, h)) { b.ships.push(new Ship(k, x, y, h)); break; } } return b; }
+  static random() { const b = new Board(); for (let k = 0; k < NK; k++) for (;;) { const h = Math.random() < .5, x = ri(10), y = ri(10); if (b.fits(k, x, y, h)) { b.ships.push(new Ship(k, x, y, h)); break; } } return b; }
   shipAt(x, y) { return this.ships.findIndex(s => s.cells().some(c => c[0] === x && c[1] === y)); }
   fits(k, x, y, h, skip = -1) { return new Ship(k, x, y, h).cells().every(([cx, cy]) => cx >= 0 && cx < 10 && cy >= 0 && cy < 10 && this.ships.every((s, i) => i === skip || !s.cells().some(c => c[0] === cx && c[1] === cy))); }
   fire(x, y) {
@@ -245,7 +245,7 @@ class Board {
     s.hits |= 1 << s.cells().findIndex(c => c[0] === x && c[1] === y);
     return s.sunk ? { r: 'S', ship: { kind: s.kind, x: s.x, y: s.y, h: s.h } } : { r: 'H', kind: s.kind };
   }
-  defeated() { return this.ships.length === 5 && this.ships.every(s => s.sunk); }
+  defeated() { return this.ships.length === NK && this.ships.every(s => s.sunk); }
   known() {
     const k = this.shot.map(r => r.slice());
     for (const s of this.ships) if (s.sunk) for (const [x, y] of s.cells()) k[y][x] = 3;
@@ -463,7 +463,59 @@ function islands() {
   });
   return m;
 }
-const SHIP_FN = [carrier, battleship, cruiser, submarine, destroyer];
+function freighter(m, p, hullCol) {
+  const dh = .14, white = [.92, .92, .88];
+  hull(m, 2.86, .25, dh, .13, Object.assign({}, p, { hull: hullCol, deck: [.33, .31, .29] }));
+  m.block([-1.28, -.2, dh], [-.82, .2, dh + .26], .02, .02, white);
+  bridge(m, -1.22, -.84, .16, dh + .26, dh + .4, Object.assign({}, p, { sup: white }));
+  funnel(m, [-1.14, 0, dh + .4], .16, .06, Object.assign({}, p, { sup: [.85, .32, .14] }));
+  mast(m, [1.0, 0, dh], .42, .12, p);
+  m.cyl([.75, .12, dh], [.75, .12, dh + .38], .02, .015, 6, [.9, .7, .1], false);
+  m.cyl([.75, .12, dh + .36], [.35, .02, dh + .42], .012, .01, 5, [.9, .7, .1], false);
+  return dh;
+}
+function orangeFruit() {
+  const o = new Model(), r = .052, prof = [];
+  for (let i = 0; i <= 5; i++) { const a = -Math.PI / 2 + i / 5 * Math.PI; prof.push([Math.sin(a) * r, Math.max(.004, Math.cos(a) * r)]); }
+  o.lathe(prof, 0, 7, [1, .52, .05]);
+  o.cuboid([-.008, -.008, r * .9], [.008, .008, r * 1.25], [.2, .55, .15]);
+  return o;
+}
+function orangeShip(p) {
+  const m = new Model(), dh = freighter(m, p, [.13, .33, .62]), fruit = orangeFruit(), wall = [.75, .72, .66];
+  for (const [x0, x1] of [[-.72, -.06], [.04, .68]]) {
+    m.cuboid([x0, -.21, dh], [x1, -.19, dh + .12], wall); m.cuboid([x0, .19, dh], [x1, .21, dh + .12], wall);
+    m.cuboid([x0, -.21, dh], [x0 + .02, .21, dh + .12], wall); m.cuboid([x1 - .02, -.21, dh], [x1, .21, dh + .12], wall);
+    for (let layer = 0; layer < 3; layer++) {
+      const inset = layer * .05, z = dh + .05 + layer * .075;
+      for (let x = x0 + .07 + inset; x < x1 - .05 - inset; x += .1) for (let y = -.14 + inset; y <= .14 - inset + 1e-6; y += .1)
+        m.add(fruit, MT(x + (layer % 2) * .02, y, z));
+    }
+  }
+  return m;
+}
+function giraffe() {
+  const g = new Model(), Y = [.93, .74, .32], B = [.48, .28, .1];
+  for (const [lx, ly] of [[-.07, -.025], [-.07, .025], [.07, -.025], [.07, .025]]) g.cyl([lx, ly, 0], [lx, ly, .13], .012, .012, 5, Y, false);
+  g.block([-.1, -.045, .12], [.1, .045, .21], .015, .008, Y);
+  g.cyl([.07, 0, .19], [.14, 0, .62], .028, .018, 7, Y, false);
+  g.block([.11, -.025, .6], [.21, .025, .655], .012, .006, Y);
+  g.cuboid([.195, -.02, .6], [.235, .02, .64], B);
+  for (const sy of [-1, 1]) { g.cyl([.13, sy * .013, .65], [.125, sy * .016, .7], .006, .006, 4, B, true); g.cuboid([.1, sy * .025, .63], [.12, sy * .05, .645], Y); }
+  for (const [x, z] of [[-.05, .17], [.03, .15], [.06, .19], [-.08, .19]]) for (const sy of [-1, 1]) g.cuboid([x, sy * .046 - .001, z], [x + .035, sy * .046 + .001, z + .03], B);
+  for (let i = 0; i < 4; i++) { const t = .25 + i * .17, x = .07 + .07 * t, z = .19 + .43 * t; for (const sy of [-1, 1]) g.cuboid([x - .012, sy * .026 - .002, z], [x + .012, sy * .026 + .002, z + .03], B); }
+  return g;
+}
+function giraffeShip(p) {
+  const m = new Model(), dh = freighter(m, p, [.62, .16, .12]), rail = [.55, .4, .22];
+  for (const z of [.07, .13]) { m.cuboid([-.72, -.2, dh + z], [.72, -.185, dh + z + .015], rail); m.cuboid([-.72, .185, dh + z], [.72, .2, dh + z + .015], rail); }
+  for (let x = -.72; x <= .73; x += .18) for (const y of [-.2, .185]) m.cuboid([x, y, dh], [x + .015, y + .015, dh + .15], rail);
+  m.cuboid([-.72, -.2, dh], [.72, .2, dh + .005], [.55, .48, .3]);
+  const gi = giraffe();
+  [[-.45, -.06, .25], [.0, .07, -.15], [.45, -.05, .1]].forEach(([x, y, r]) => m.add(gi, mul(MT(x, y, dh), MRZ(r), MS(1.3, 1.3, 1.3))));
+  return m;
+}
+const SHIP_FN = [carrier, battleship, cruiser, submarine, destroyer, orangeShip, giraffeShip];
 
 // ================================================================ renderer & scene
 const canvas = $('gl');
@@ -504,18 +556,18 @@ const water = (() => {
   for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const a = j * n + i, b = a + 1, c = a + n, d = c + 1; idx.push(a, b, d, a, d, c); }
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
   const mat = new T.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uSun: { value: SUN }, uFog: { value: FOG }, uFogD: { value: FOG_D } },
+    uniforms: { uTime: { value: 0 }, uSun: { value: SUN }, uFog: { value: FOG }, uFogD: { value: FOG_D }, uSt0: { value: new T.Vector4() }, uSt1: { value: new T.Vector4() } },
     vertexShader: `uniform float uTime;varying vec3 vW;varying vec3 vN;varying float vCrest;
     void wave(vec2 p,vec2 dir,float len,float amp,float c,inout float h,inout vec2 g){float k=6.2831853/len;vec2 d=normalize(dir);float ph=k*dot(d,p)-k*c*uTime;h+=amp*sin(ph);g+=amp*k*cos(ph)*d;}
     void main(){vec2 p=position.xy;float h=0.;vec2 g=vec2(0.);wave(p,vec2(1.,.3),7.,.075,1.2,h,g);wave(p,vec2(-.4,1.),4.3,.045,.9,h,g);wave(p,vec2(.7,-.7),2.7,.025,.75,h,g);wave(p,vec2(.2,1.),1.6,.012,.6,h,g);
     float f=1.-smoothstep(16.,40.,length(p));h*=f;g*=f;vW=vec3(p,h);vN=normalize(vec3(-g,1.));vCrest=h;gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.);}`,
-    fragmentShader: `uniform float uTime,uFogD;uniform vec3 uSun,uFog;varying vec3 vW;varying vec3 vN;varying float vCrest;${NOISE_GLSL}
+    fragmentShader: `uniform float uTime,uFogD;uniform vec3 uSun,uFog;uniform vec4 uSt0,uSt1;varying vec3 vW;varying vec3 vN;varying float vCrest;${NOISE_GLSL}
     void main(){float t=uTime;float a=fbm(vW.xy*1.4+vec2(t*.12,t*.07)),b=fbm(vW.xy*.7+vec2(-t*.06,t*.1)),c=vn(vW.xy*5.+vec2(t*.4,-t*.25));
     vec3 n=normalize(vN+vec3((a+b-1.)*.3+(c-.5)*.18,(b-a)*.3+(c-.5)*.18,0.));vec3 v=normalize(cameraPosition-vW);float ndv=max(dot(n,v),0.);
     float fr=.03+.97*pow(1.-ndv,5.);vec3 r=reflect(-v,n);vec3 sk=mix(uFog,vec3(.28,.46,.78),clamp(r.z*1.6,0.,1.));
     vec3 body=mix(vec3(.025,.12,.2),vec3(.05,.3,.36),clamp(.45+vCrest*3.+(a-.5)*.5,0.,1.));body*=.65+.55*max(dot(n,uSun),0.);
     vec3 col=mix(body,sk,fr);float sd=max(dot(r,uSun),0.);col+=vec3(1.,.92,.75)*(pow(sd,700.)*6.+pow(sd,60.)*.3);
-    col=mix(col,vec3(.85,.9,.92),smoothstep(.1,.16,vCrest+(b-.5)*.1)*.55);float d=distance(vW,cameraPosition)*uFogD;float f=exp(-d*d);
+    col=mix(col,vec3(.85,.9,.92),smoothstep(.1,.16,vCrest+(b-.5)*.1)*.55);vec3 oj=vec3(1.,.48,.04)*(.65+.55*max(dot(n,uSun),0.))+vec3(1.,.85,.6)*pow(sd,60.)*.4;col=mix(col,oj,uSt0.w*smoothstep(uSt0.z,uSt0.z*.3,distance(vW.xy,uSt0.xy))*(.7+.3*a));col=mix(col,oj,uSt1.w*smoothstep(uSt1.z,uSt1.z*.3,distance(vW.xy,uSt1.xy))*(.7+.3*a));float d=distance(vW,cameraPosition)*uFogD;float f=exp(-d*d);
     gl_FragColor=vec4(mix(uFog,col,f),mix(.8,1.,max(fr,1.-f)));}`,
     transparent: true, depthWrite: true, fog: false
   });
@@ -563,7 +615,7 @@ const decalMat = mode => new T.ShaderMaterial({
 });
 const plane = new T.PlaneGeometry(1, 1);
 const fills = [...Array(6)].map(() => { const m = new T.Mesh(plane, decalMat(0)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
-const reticles = [0, 1].map(() => { const m = new T.Mesh(plane, decalMat(1)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
+const reticles = [0, 1, 2].map(() => { const m = new T.Mesh(plane, decalMat(1)); m.renderOrder = 4; m.visible = false; scene.add(m); return m; });
 
 // particles: billboards with procedural soft / puffy / ring sprites
 const MAXP = 5000;
@@ -810,10 +862,18 @@ function syncMusic() {
 // ================================================================ game state
 let phase = 'menu', mode = 'ai', level = store.get('bs-level') ?? 1;
 let boards = [Board.random(), new Board()];
-let playerTurn = true, shell = null, wait = 0, time = 0, phaseT = 0, msgT = 0;
+let playerTurn = true, shells = [], wait = 0, time = 0, phaseT = 0, msgT = 0;
 let sel = null, horiz = true, hover = null, stats = [[0, 0], [0, 0]], won = false, fanfare = false;
 let camT = new T.Vector3(-6.5, 0, .5), camYaw = .6, camPitch = .1, camDist = 11, userYaw = 0, userPitch = 0, zoom = 1, shake = 0;
 const pendingVis = new Set(), queue = [];
+let power = [0, 0], streak = [0, 0], pick1 = null;
+const stains = [0, 1].map(() => ({ x: 0, y: 0, r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
+function orangeSpill(b, px, py, sunk) {
+  const st = stains[b]; st.n++; st.x = st.n === 1 ? px : lerp(st.x, px, .4); st.y = st.n === 1 ? py : lerp(st.y, py, .4);
+  st.tr = Math.min(5.5, 2.2 + st.n * 1.1 + (sunk ? 1.5 : 0)); st.ts = Math.min(.85, .45 + st.n * .15 + (sunk ? .2 : 0));
+  for (let i = 0; i < (sunk ? 90 : 45); i++) { const a = rnd(0, TAU), v = rnd(.3, 2.2); fx.add({ p: [px, py, .2], v: [Math.cos(a) * v, Math.sin(a) * v, rnd(1, 3)], g: 6, life: rnd(.8, 1.4), s0: .13, s1: .13, c0: [1, .55, .08, 1], c1: [1, .55, .08, 1], k: 0, add: false });
+    fx.add({ p: [px + Math.cos(a) * rnd(.2, 1.4), py + Math.sin(a) * rnd(.2, 1.4), .06], v: [Math.cos(a) * v * .25, Math.sin(a) * v * .25, 0], drag: .25, life: rnd(15, 30), s0: .12, s1: .12, c0: [1, .52, .06, 1], c1: [1, .5, .05, 0], k: 0, add: false }); }
+}
 let aimed = null, touchAim = null, cheat = false;
 let viewMine = false;
 const isCaptain = () => store.get('bs-captain') === true;
@@ -821,16 +881,17 @@ const vkey = (b, x, y) => b * 100 + y * 10 + x;
 
 function say(text, col) { const m = $('msg'); m.textContent = text; m.style.color = col; m.classList.remove('show'); void m.offsetWidth; m.classList.add('show'); }
 function setPhase(p) { phase = p; phaseT = 0; for (const s of ['menu', 'lobby', 'place', 'battle', 'over']) $('s-' + s).hidden = s !== p && !(p === 'over' && s === 'battle'); music.want = p === 'over' ? null : p === 'place' ? 'brief' : p === 'battle' ? 'battle' : 'menu'; syncMusic(); uiDirty = true; }
-function goMenu() { netLeave(); mode = 'ai'; boards = [Board.random(), new Board()]; shell = null; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('menu'); }
-function goPlace() { boards = [new Board(), new Board()]; sel = 0; horiz = true; shell = null; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
+function goMenu() { netLeave(); mode = 'ai'; boards = [Board.random(), new Board()]; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('menu'); }
+function goPlace() { boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
 function startBattle() {
   if (mode === 'ai') boards[1] = Board.random();
+  power = [0, 0]; streak = [0, 0]; pick1 = null; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
   setPhase('battle'); say(playerTurn ? 'بدأت المعركة! أطلق النار أولا' : 'بدأت المعركة! الخصم يبدأ', '#ffd36b');
 }
 const foe = () => mode === 'online' ? 'الخصم' : 'العدو';
-const nextUnplaced = () => [0, 1, 2, 3, 4].find(k => !boards[0].ships.some(s => s.kind === k)) ?? null;
+const nextUnplaced = () => [...LENS.keys()].find(k => !boards[0].ships.some(s => s.kind === k)) ?? null;
 function anchor(k, x, y) { const l = LENS[k]; return horiz ? [clamp(x - ((l - 1) >> 1), 0, N - l), y] : [x, clamp(y - ((l - 1) >> 1), 0, N - l)]; }
 function myTurn() { return mode === 'online' ? NET.myTurn() : playerTurn; }
 
@@ -853,14 +914,17 @@ function launch(target, x, y, extra = {}) {
   const dist = vlen(vsub(to, from));
   fx.muzzle(from, vadd(vmul(vnorm(vsub(to, from)), .5), [0, 0, .5]));
   play('fire', target === 1 ? .85 : .5);
-  shell = Object.assign({ from, to, t: 0, dur: 1 + dist * .05, arc: 2 + dist * .22, target, x, y, whistled: false }, extra);
+  shells.push(Object.assign({ from, to, t: 0, dur: 1 + dist * .05, arc: 2 + dist * .22, target, x, y, whistled: false }, extra));
 }
 
 // effects + messages for a resolved shot; out = {r:'M'} | {r:'H',kind} | {r:'S',ship}
-function showImpact(target, x, y, out) {
+function showImpact(target, x, y, out, vol) {
   const [px, py] = cellCenter(target, x, y), player = target === 1, who = player ? 0 : 1, c = coord(x, y), f = foe();
   stats[who][0]++;
   pendingVis.delete(vkey(target, x, y));
+  streak[who] = out.r === 'M' ? 0 : streak[who] + 1;
+  const hitKind = out.r === 'H' ? out.kind : out.r === 'S' ? out.ship.kind : -1;
+  if (hitKind === 5) orangeSpill(target, px, py, out.r === 'S');
   if (out.r === 'M') { fx.splash([px, py, 0], 1); play('splash', .8); say(player ? 'أخطأت الهدف ' + c : f + ' أخطأ في ' + c, player ? '#d9ebff' : '#9fd9ff'); }
   else if (out.r === 'H') { stats[who][1]++; fx.explosion([px, py, .1], 1); fx.splash([px, py, 0], .5); play('boom', .9); shake = .25; say(player ? 'إصابة مباشرة! ' + c : f + ' أصاب ' + NAMES[out.kind ?? 0] + '!', player ? '#ffa040' : '#ff6a50'); }
   else {
@@ -869,9 +933,18 @@ function showImpact(target, x, y, out) {
     const sh = boards[target].ships.find(o => o.kind === s.kind); if (sh) sh.hold = false;
     fx.splash([px, py, 0], 1.2); play('boom', 1); play('sink', .9); shake = .6;
     say(player ? 'أغرقت ' + NAMES[s.kind] + ' ' + ADJ[s.kind] + '!' : 'أغرق ' + f + ' ' + NAMES[s.kind] + '!', player ? '#ffd640' : '#ff5040');
+    if (streak[who] >= LENS[s.kind]) {
+      power[who]++;
+      setTimeout(() => { if (phase === 'battle') { say(player ? 'باور أب! ضربتين في نفس الوقت' : f + ' حصل على باور أب!', '#ffd84d'); play('ping', .7); } }, 1300);
+    }
   }
   if (boards[target].defeated()) { won = player; wait = 0; setPhase('over'); if (mode === 'online') NET.gameOver(); }
-  else { if (mode === 'ai' && out.r === 'M') playerTurn = !player; wait = player ? 1.2 : .5; }
+  else {
+    let pass = out.r === 'M';
+    if (vol) { vol.done++; if (out.r !== 'M') vol.hits++; pass = vol.done >= vol.total && vol.hits === 0; }
+    if (mode === 'ai' && pass) playerTurn = !player;
+    wait = player ? 1.2 : .5;
+  }
   uiDirty = true;
 }
 function impactLocal(target, x, y) {
@@ -883,12 +956,12 @@ function impactLocal(target, x, y) {
 // Each player keeps one presence object in a named room: their shots, their answers to the
 // opponent's shots and a ready flag. Fleets stay on each player's own device until the end.
 const NET = {
-  api: undefined, room: null, code: '', seat: '', nick: '', round: 0, ready: false, shots: [], res: [], inc: [], reveal: false, opp: null, unsub: null,
+  api: undefined, room: null, code: '', seat: '', nick: '', round: 0, ready: false, shots: [], dbl: [], res: [], inc: [], reveal: false, opp: null, unsub: null,
   key() { return 'bs-net-' + this.code; },
-  save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
+  save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, dbl: this.dbl, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, shots: this.shots.map(([x, y]) => '' + x + y).join(''), res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, shots: this.shots.map(([x, y]) => '' + x + y).join(''), d: this.dbl.join(','), res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + s.x + s.y + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
@@ -900,13 +973,15 @@ const NET = {
   first() { const o = this.opp; return !!o && this.seat < o.seat; },
   oShots() { const s = String(this.opp?.shots || ''), out = []; for (let i = 0; i + 1 < s.length; i += 2) { const x = +s[i], y = +s[i + 1]; if (x >= 0 && x < 10 && y >= 0 && y < 10) out.push([x, y]); } return out; },
   oRes() { return parseRes(String(this.opp?.res || '')); },
+  oDbl() { return new Set(String(this.opp?.d || '').split(',').filter(v => v !== '').map(Number)); },
   myTurn() {
     if (!this.same() || phase !== 'battle') return false;
     const mine = this.shots.length, theirs = this.oShots().length, oRes = this.oRes(), myRes = parseRes(this.res.join(''));
+    const myD = new Set(this.dbl), oD = this.oDbl();
     let me = this.first(), i = 0, j = 0;
     for (;;) {
-      if (me) { if (i >= mine) return true; const r = oRes[i++]; if (!r) return false; if (r.r === 'M') me = false; }
-      else { if (j >= theirs) return false; const r = myRes[j++]; if (!r) return false; if (r.r === 'M') me = true; }
+      if (me) { if (i >= mine) return true; const n = myD.has(i) ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = oRes[i + q]; if (!r) return false; if (r.r !== 'M') hit = true; } i += n; if (!hit) me = false; }
+      else { if (j >= theirs) return false; const n = oD.has(j) ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = myRes[j + q]; if (!r) return false; if (r.r !== 'M') hit = true; } j += n; if (!hit) me = true; }
     }
   },
   gameOver() { this.reveal = true; this.push(); }
@@ -916,13 +991,13 @@ function parseRes(s) {
   while (i < s.length) {
     const c = s[i];
     if (c === 'M') { out.push({ r: 'M' }); i++; }
-    else if (c === 'H') { out.push({ r: 'H' }); i++; }
-    else if (c === 'S' && i + 4 < s.length) { const k = +s[i + 1], x = +s[i + 2], y = +s[i + 3], h = s[i + 4] === '1'; if (k >= 0 && k < 5) out.push({ r: 'S', ship: { kind: k, x, y, h } }); i += 5; }
+    else if (c === 'H') { const k = s[i + 1]; if (k >= '0' && k <= '9') { out.push({ r: 'H', kind: +k }); i += 2; } else { out.push({ r: 'H' }); i++; } }
+    else if (c === 'S' && i + 4 < s.length) { const k = +s[i + 1], x = +s[i + 2], y = +s[i + 3], h = s[i + 4] === '1'; if (k >= 0 && k < NK) out.push({ r: 'S', ship: { kind: k, x, y, h } }); i += 5; }
     else break;
   }
   return out;
 }
-const encRes = o => o.r === 'S' ? 'S' + o.ship.kind + o.ship.x + o.ship.y + (o.ship.h ? 1 : 0) : o.r;
+const encRes = o => o.r === 'S' ? 'S' + o.ship.kind + o.ship.x + o.ship.y + (o.ship.h ? 1 : 0) : o.r === 'H' ? 'H' + (o.kind ?? 0) : 'M';
 
 // Local stand-in for the room when the page runs outside claude.ai (two tabs on one machine).
 function mockRoom() {
@@ -1013,15 +1088,15 @@ async function netJoin(code) {
   netLeave();
   NET.room = r; NET.code = code; NET.nick = ($('nick').value.trim() || 'قبطان').slice(0, 20); store.set('bs-nick', NET.nick);
   const saved = store.get(NET.key());
-  mode = 'online'; boards = [new Board(), new Board()]; fx.ps = []; queue.length = 0; pendingVis.clear(); shell = null; stats = [[0, 0], [0, 0]];
+  mode = 'online'; boards = [new Board(), new Board()]; fx.ps = []; queue.length = 0; pendingVis.clear(); shells = []; stats = [[0, 0], [0, 0]];
   if (saved && saved.seat) {
-    Object.assign(NET, { seat: saved.seat, round: saved.round | 0, ready: !!saved.ready, shots: saved.shots || [], res: saved.res || [], inc: saved.inc || [], reveal: false });
+    Object.assign(NET, { seat: saved.seat, round: saved.round | 0, ready: !!saved.ready, shots: saved.shots || [], dbl: saved.dbl || [], res: saved.res || [], inc: saved.inc || [], reveal: false });
     for (const [k, x, y, h] of saved.fleet || []) boards[0].ships.push(new Ship(k, x, y, !!h));
     for (const [x, y] of NET.inc) boards[0].fire(x, y);
     stats[1] = [NET.inc.length, NET.inc.filter(([x, y]) => boards[0].shot[y][x] === 2).length];
     setPhase('place'); sel = NET.ready ? null : nextUnplaced();
   } else {
-    Object.assign(NET, { seat: Math.random().toString(36).slice(2, 10), round: 0, ready: false, shots: [], res: [], inc: [], reveal: false });
+    Object.assign(NET, { seat: Math.random().toString(36).slice(2, 10), round: 0, ready: false, shots: [], dbl: [], res: [], inc: [], reveal: false });
     goPlace();
   }
   NET.unsub = r.onPeers(() => netTick(), () => { if (mode === 'online') { say('انقطع الاتصال بالغرفة', '#ff6a50'); goMenu(); } });
@@ -1042,7 +1117,7 @@ function netTick() {
   if (mode !== 'online' || !NET.room) return;
   NET.opp = NET.oppState(); uiDirty = true;
   if (!NET.same()) return;
-  if (phase === 'place' && NET.ready && NET.opp.ready && boards[0].ships.length === 5) { netRestoreBattle(); startBattle(); }
+  if (phase === 'place' && NET.ready && NET.opp.ready && boards[0].ships.length === NK) { netRestoreBattle(); startBattle(); }
   if (phase !== 'battle' && phase !== 'over') return;
   // answer every new shot at us right away; the shell animation shows it a moment later
   const theirs = NET.oShots();
@@ -1052,15 +1127,15 @@ function netTick() {
     if (boards[0].shot[y][x]) { NET.res.push(encRes({ r: boards[0].shot[y][x] === 1 ? 'M' : 'H' })); changed = true; continue; }
     const o = boards[0].fire(x, y); NET.res.push(encRes(o)); NET.inc.push([x, y]); changed = true;
     pendingVis.add(vkey(0, x, y)); if (o.r === 'S') { const s = boards[0].ships.find(q => q.kind === o.ship.kind); if (s) s.hold = true; }
-    queue.push({ target: 0, x, y, out: o });
+    queue.push({ target: 0, x, y, out: o, vol: NET.oDbl().has(NET.res.length - 1) });
   }
   if (changed) NET.push();
   if (phase === 'over' && NET.opp.fleet) {
     const f = String(NET.opp.fleet);
-    for (let i = 0; i + 3 < f.length; i += 4) { const k = +f[i]; if (k >= 0 && k < 5 && !boards[1].ships.some(s => s.kind === k)) { const s = new Ship(k, +f[i + 1], +f[i + 2], f[i + 3] === '1'); s.cells().forEach(([cx, cy], j) => { if (boards[1].shot[cy]?.[cx] === 2) s.hits |= 1 << j; }); boards[1].ships.push(s); } }
+    for (let i = 0; i + 3 < f.length; i += 4) { const k = +f[i]; if (k >= 0 && k < NK && !boards[1].ships.some(s => s.kind === k)) { const s = new Ship(k, +f[i + 1], +f[i + 2], f[i + 3] === '1'); s.cells().forEach(([cx, cy], j) => { if (boards[1].shot[cy]?.[cx] === 2) s.hits |= 1 << j; }); boards[1].ships.push(s); } }
   }
 }
-function netRematch() { NET.round++; NET.ready = false; NET.shots = []; NET.res = []; NET.inc = []; NET.reveal = false; goPlace(); NET.push(); }
+function netRematch() { NET.round++; NET.ready = false; NET.shots = []; NET.dbl = []; NET.res = []; NET.inc = []; NET.reveal = false; goPlace(); NET.push(); }
 
 // ================================================================ input
 const pointer = { x: -1, y: -1, inside: false }; let clickAt = null, drag = null;
@@ -1088,7 +1163,7 @@ function placeLocked() { return mode === 'online' && NET.ready; }
 function rotateShip() { if (placeLocked()) return; horiz = !horiz; play('rotate', .6); }
 function randomFleet() { if (placeLocked()) return; boards[0] = Board.random(); sel = null; play('place', .8); uiDirty = true; }
 function startOrReady() {
-  if (boards[0].ships.length !== 5) return;
+  if (boards[0].ships.length !== NK) return;
   if (mode === 'online') { if (!NET.ready) { NET.ready = true; sel = null; play('ping', .6); NET.push(); netTick(); uiDirty = true; } }
   else { play('ping', .6); startBattle(); }
 }
@@ -1116,9 +1191,9 @@ function update(dt) {
     if (!touchAim || touchAim[1] !== click[1] || touchAim[2] !== click[2]) { touchAim = click; clicked = false; play('rotate', .4); }
     else touchAim = null;
   }
-  if (phase === 'battle' && clicked && click && click[0] === 1 && (wait > 0 || shell || queue.length)) { aimed = click; clicked = false; }
+  if (phase === 'battle' && clicked && click && click[0] === 1 && (wait > 0 || shells.length || queue.length)) { aimed = click; clicked = false; }
   if (phase !== 'battle') aimed = null;
-  if (!clicked && aimed && phase === 'battle' && !shell && !queue.length && wait <= 0 && myTurn()) { click = aimed; clicked = true; aimed = null; }
+  if (!clicked && aimed && phase === 'battle' && !shells.length && !queue.length && wait <= 0 && myTurn()) { click = aimed; clicked = true; aimed = null; }
 
   if (phase === 'place' && clicked && click && click[0] === 0 && !placeLocked()) {
     const [, x, y] = click;
@@ -1129,26 +1204,45 @@ function update(dt) {
     } else { const i = boards[0].shipAt(x, y); if (i >= 0) { const s = boards[0].ships.splice(i, 1)[0]; sel = s.kind; horiz = s.h; play('click', .6); uiDirty = true; } }
   }
   if (phase === 'battle') {
-    if (shell) {
-      const sh = shell; sh.t += dt / sh.dur; const t = Math.min(1, sh.t);
-      const p = vadd(vadd(vmul(sh.from, 1 - t), vmul(sh.to, t)), [0, 0, sh.arc * 4 * t * (1 - t)]);
-      if (!sh.whistled && sh.t > .3) { sh.whistled = true; play('whistle', sh.target === 0 ? .7 : .4); }
-      if (sh.t >= 1) {
-        if (sh.out) { shell = null; showImpact(sh.target, sh.x, sh.y, sh.out); }
-        else if (mode === 'online') { const o = NET.oRes()[sh.idx]; if (o) { shell = null; applyRemote(sh.x, sh.y, o); showImpact(1, sh.x, sh.y, o); } }
-        else { shell = null; impactLocal(sh.target, sh.x, sh.y); }
-      } else fx.shell(p, dt);
+    if (shells.length) {
+      for (const sh of shells.slice()) {
+        sh.t += dt / sh.dur; const t = Math.min(1, sh.t);
+        const p = vadd(vadd(vmul(sh.from, 1 - t), vmul(sh.to, t)), [0, 0, sh.arc * 4 * t * (1 - t)]);
+        if (!sh.whistled && sh.t > .3) { sh.whistled = true; play('whistle', sh.target === 0 ? .7 : .4); }
+        if (sh.t < 1) { fx.shell(p, dt); continue; }
+        let out = sh.out;
+        if (!out && mode === 'online' && sh.target === 1) { const o = NET.oRes()[sh.idx]; if (o) { applyRemote(sh.x, sh.y, o); out = o; } }
+        else if (!out) out = boards[sh.target].fire(sh.x, sh.y);
+        if (out) { shells.splice(shells.indexOf(sh), 1); showImpact(sh.target, sh.x, sh.y, out, sh.vol); if (phase !== 'battle') break; }
+      }
     } else if (wait > 0) wait -= dt;
-    else if (queue.length) { const q = queue.shift(); launch(q.target, q.x, q.y, { out: q.out }); }
+    else if (queue.length) {
+      const q = queue.shift(), vol = q.vol && queue.length ? { total: 2, hits: 0, done: 0 } : null;
+      launch(q.target, q.x, q.y, { out: q.out, vol });
+      if (vol) { const q2 = queue.shift(); launch(q2.target, q2.x, q2.y, { out: q2.out, vol }); }
+    }
     else if (myTurn()) {
       if (clicked && click && click[0] === 1) {
         const [, x, y] = click;
-        if (boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(s => s[0] === x && s[1] === y))) {
-          if (mode === 'online') { NET.shots.push([x, y]); NET.push(); launch(1, x, y, { idx: NET.shots.length - 1 }); }
-          else launch(1, x, y);
-        } else play('click', .4);
+        const free = boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(s => s[0] === x && s[1] === y));
+        if (!free || (pick1 && pick1[0] === x && pick1[1] === y)) play('click', .4);
+        else if (power[0] > 0 && !pick1) { pick1 = [x, y]; play('rotate', .6); uiDirty = true; }
+        else {
+          const targets = pick1 ? [pick1, [x, y]] : [[x, y]], vol = pick1 ? { total: 2, hits: 0, done: 0 } : null;
+          if (pick1) { power[0]--; pick1 = null; }
+          if (mode === 'online') { if (vol) NET.dbl.push(NET.shots.length); for (const tg of targets) NET.shots.push(tg); NET.push(); }
+          targets.forEach(([tx, ty], i) => launch(1, tx, ty, { idx: mode === 'online' ? NET.shots.length - targets.length + i : undefined, vol }));
+        }
       }
-    } else if (mode === 'ai') { const [x, y] = aiTarget(boards[0], level); launch(0, x, y); }
+    } else if (mode === 'ai') {
+      const [x, y] = aiTarget(boards[0], level);
+      if (power[1] > 0) {
+        power[1]--; boards[0].shot[y][x] = 9; const s2 = aiTarget(boards[0], level); boards[0].shot[y][x] = 0;
+        const two = s2[0] !== x || s2[1] !== y, vol = { total: two ? 2 : 1, hits: 0, done: 0 };
+        launch(0, x, y, { vol }); if (two) launch(0, s2[0], s2[1], { vol });
+        say(foe() + ' يستخدم الضربة المزدوجة!', '#ff8a50');
+      } else launch(0, x, y);
+    }
   }
   if (phase === 'over' && !fanfare && phaseT > 1.2) { fanfare = true; play(won ? 'win' : 'lose', .8); }
   if (mode === 'online' && Math.floor(time * 2) !== Math.floor((time - dt) * 2)) netTick();
@@ -1165,7 +1259,7 @@ function desiredCam() {
     const pf = Math.min(.45, 400 / W), d = Math.max(6.4 / tan, 12 / (1 - pf) * 1.12 / (2 * tan * asp)) * 1.05;
     return [new T.Vector3(-6.5 + pf * d * tan * asp, .6, 0), 0, .95, d];
   }
-  if (narrow) { const b = phase === 'battle' ? (viewMine ? 0 : myTurn() || touchAim || (shell && shell.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom; return [new T.Vector3(BC[b][0], -1.4, 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
+  if (narrow) { const b = phase === 'battle' ? (viewMine ? 0 : myTurn() || touchAim || shells.some(q => q.target === 1) ? 1 : 0) : 1, d = Math.max(6.4 / tan, 6.8 / (tan * asp)) * 1.12 * zoom; return [new T.Vector3(BC[b][0], -1.4, 0), userYaw, clamp(.95 + userPitch, .35, 1.45), d]; }
   const d = Math.max(13.6 / (tan * asp), 7.2 / tan) * 1.3;
   if (phase === 'battle') return [new T.Vector3(myTurn() ? .6 : -.6, -1.1, 0), userYaw, clamp(.92 + userPitch, .35, 1.45), d * zoom];
   return [new T.Vector3(0, -1, 0), userYaw + Math.sin(phaseT * .05) * .5, clamp(.7 + userPitch, .3, 1.4), d * zoom];
@@ -1178,8 +1272,9 @@ function render(dt) {
   camera.lookAt(camT.x + jit() * .5, camT.y + jit() * .5, camT.z);
   camera.updateMatrixWorld();
   sky.position.copy(camera.position); sky.material.uniforms.uTime.value = time; water.material.uniforms.uTime.value = time;
+  stains.forEach((st, b) => { st.r += (st.tr - st.r) * k * .5; st.s += (st.ts - st.s) * k; water.material.uniforms['uSt' + b].value.set(st.x, st.y, st.r, st.s); });
 
-  for (let b = 0; b < 2; b++) for (let kd = 0; kd < 5; kd++) {
+  for (let b = 0; b < 2; b++) for (let kd = 0; kd < NK; kd++) {
     const m = shipMesh[b][kd], s = boards[b].ships.find(q => q.kind === kd);
     const show = s && (b === 0 || (s.sunk && !s.hold) || phase === 'over');
     m.visible = !!show; if (!show) continue;
@@ -1193,7 +1288,7 @@ function render(dt) {
     if (mode === 'ai') list = boards[1].ships.map(s => [s.kind, s.x, s.y, s.h]);
     else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) list.push([+f[i], +f[i + 1], +f[i + 2], f[i + 3] === '1']); }
     for (const [kd, x, y, h] of list) {
-      if (!(kd >= 0 && kd < 5) || boards[1].ships.some(q => q.kind === kd && q.sunk && !q.hold)) continue;
+      if (!(kd >= 0 && kd < NK) || boards[1].ships.some(q => q.kind === kd && q.sunk && !q.hold)) continue;
       const t = shipMatrix(1, new Ship(kd, x, y, h), time), m = spy[kd]; m.position.set(...t.pos); m.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'ZYX'); m.visible = true;
     }
   }
@@ -1206,12 +1301,13 @@ function render(dt) {
     for (const [cx, cy] of gs.cells()) if (cx >= 0 && cx < 10 && cy >= 0 && cy < 10) fill(0, cx, cy, ok ? [.5, 1, .6, .3] : [1, .35, .3, .3]);
     const g = ghost[sel], t = shipMatrix(0, gs, time); g.position.set(...t.pos); g.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'ZYX'); g.material.color.setRGB(...(ok ? [.5, 1, .6] : [1, .35, .3])); g.visible = true;
   }
-  if (phase === 'battle' && myTurn() && !shell && !queue.length && hover && hover[0] === 1) {
+  if (phase === 'battle' && myTurn() && !shells.length && !queue.length && hover && hover[0] === 1) {
     const [, x, y] = hover, free = boards[1].shot[y][x] === 0, c = cellCenter(1, x, y);
     if (free) { fill(1, x, y, [1, .4, .15, .55 * (.8 + .2 * Math.sin(time * 8))]); const r = reticles[0]; r.position.set(c[0], c[1], GRID_Z + .02); const s = 1.5 + .1 * Math.sin(time * 4); r.scale.set(s, s, 1); r.rotation.set(0, 0, time * .8); r.material.uniforms.uCol.value.set(1, .55, .2, .9); r.visible = true; }
     else fill(1, x, y, [.5, .5, .5, .3]);
   }
-  if (shell) { const r = reticles[1], c = cellCenter(shell.target, shell.x, shell.y); r.position.set(c[0], c[1], GRID_Z + .02); r.scale.set(1.2, 1.2, 1); r.rotation.set(0, 0, -time * 2); r.material.uniforms.uCol.value.set(1, .3, .2, .8); r.visible = true; }
+  shells.slice(0, 2).forEach((sh, i) => { const r = reticles[1 + i], c = cellCenter(sh.target, sh.x, sh.y); r.position.set(c[0], c[1], GRID_Z + .02); r.scale.set(1.2, 1.2, 1); r.rotation.set(0, 0, -time * 2); r.material.uniforms.uCol.value.set(1, .3, .2, .8); r.visible = true; });
+  if (pick1 && phase === 'battle' && !shells.length) { const r = reticles[1], c = cellCenter(1, pick1[0], pick1[1]); r.position.set(c[0], c[1], GRID_Z + .02); r.scale.set(1.4, 1.4, 1); r.rotation.set(0, 0, -time * 1.5); r.material.uniforms.uCol.value.set(1, .85, .2, .95); r.visible = true; }
   const pulse = .85 + .15 * Math.sin(time * 3), mt = myTurn();
   const ga = phase === 'menu' || phase === 'lobby' ? [0, 0] : phase === 'place' ? [1, .25] : phase === 'battle' ? (mt ? [.6, pulse] : [pulse, .6]) : [.5, .5];
   grids.forEach((g, b) => { g.material.uniforms.uAlpha.value = ga[b]; g.visible = ga[b] > .01; });
@@ -1260,7 +1356,7 @@ let uiDirty = true, lastUi = '';
 const setText = (id, t) => { const e = $(id); if (e.textContent !== t) e.textContent = t; };
 function fleetList(ul, b) {
   let html = '';
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < NK; k++) {
     const s = boards[b].ships.find(q => q.kind === k), dead = s && s.sunk && !s.hold;
     let pips = ''; for (let i = 0; i < LENS[k]; i++) { const hit = s && (s.hits & (1 << i)) && !pendingVis.has(vkey(b, ...s.cells()[i])); pips += `<i class="${dead ? 'dead' : b === 1 ? '' : hit ? 'hit' : 'ok'}"></i>`; }
     html += `<li class="${dead ? 'dead' : ''}"><span>${NAMES[k]}</span><div class="pips">${pips}</div></li>`;
@@ -1268,14 +1364,14 @@ function fleetList(ul, b) {
   if (ul.innerHTML !== html) ul.innerHTML = html;
 }
 function ui() {
-  const sig = [phase, mode, uiDirty, sel, horiz, shell ? Math.min(1, shell.t) >= 1 : !!shell, myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
+  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), power[0], pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
   if (sig === lastUi && !uiDirty) return; lastUi = sig; uiDirty = false;
   setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
   if (phase === 'place') {
     const list = $('shipList'); let html = '';
-    for (let k = 0; k < 5; k++) { const placed = boards[0].ships.some(s => s.kind === k); let pips = ''; for (let i = 0; i < LENS[k]; i++) pips += `<i class="${placed ? 'ok' : ''}"></i>`; html += `<button data-ship="${k}" class="${sel === k ? 'sel' : ''}" ${placeLocked() ? 'disabled' : ''}><span>${NAMES[k]}</span><div class="pips">${pips}</div></button>`; }
+    for (let k = 0; k < NK; k++) { const placed = boards[0].ships.some(s => s.kind === k); let pips = ''; for (let i = 0; i < LENS[k]; i++) pips += `<i class="${placed ? 'ok' : ''}"></i>`; html += `<button data-ship="${k}" class="${sel === k ? 'sel' : ''}" ${placeLocked() ? 'disabled' : ''}><span>${NAMES[k]}</span><div class="pips">${pips}</div></button>`; }
     if (list.innerHTML !== html) list.innerHTML = html;
-    const ready = boards[0].ships.length === 5, online = mode === 'online', b = $('bStart');
+    const ready = boards[0].ships.length === NK, online = mode === 'online', b = $('bStart');
     b.textContent = !online ? 'ابدأ المعركة' : NET.ready ? 'بانتظار الخصم...' : 'جاهز!';
     b.disabled = !ready || (online && NET.ready); b.classList.toggle('pulse', ready && !b.disabled);
     for (const id of ['bRotate', 'bRandom', 'bClear']) $(id).disabled = placeLocked();
@@ -1297,10 +1393,12 @@ function ui() {
     const [sh, hi] = stats[0], acc = sh ? Math.round(hi * 100 / sh) : 0;
     setText('stats', `الطلقات ${sh}   الإصابات ${hi}   الدقة ${acc}%   ` + (mode === 'online' ? 'أونلاين' : 'الصعوبة: ' + LEVELS[level]));
     let t, col;
-    const waiting = shell && shell.t >= 1 && !shell.out;
+    const waiting = shells.some(q => q.t >= 1 && !q.out);
     if (mode === 'online' && !NET.opp) { t = 'انقطع اتصال الخصم، بانتظار عودته...'; col = '#ffb08a'; }
     else if (waiting) { t = 'بانتظار رد الخصم...'; col = '#ffe79a'; }
-    else if (shell || queue.length) { t = 'قذيفة في الجو...'; col = '#ffe79a'; }
+    else if (shells.length || queue.length) { t = shells.length > 1 ? 'ضربة مزدوجة في الجو!' : 'قذيفة في الجو...'; col = '#ffe79a'; }
+    else if (myTurn() && pick1) { t = 'اختر الهدف الثاني للضربة المزدوجة'; col = '#ffd84d'; }
+    else if (myTurn() && power[0] > 0) { t = 'باور أب! اختر هدفين للضربة المزدوجة'; col = '#ffd84d'; }
     else if (myTurn()) { t = 'دورك: اختر هدفا في مياه ' + foe(); col = '#9dffd0'; }
     else if (mode === 'online') { t = (NET.opp?.nick || 'الخصم') + ' يختار هدفه...'; col = '#ff8a70'; }
     else { t = 'العدو يصوب نحو أسطولك...'; col = '#ff8a70'; }
