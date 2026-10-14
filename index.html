@@ -89,6 +89,7 @@ input:focus{outline:2px solid var(--amber)}
 #overTitle{font:400 76px var(--f-display);line-height:1.1;-webkit-text-stroke:2px #000;text-shadow:4px 5px 0 #000a}
 #overStats{display:flex;flex-direction:column;gap:6px;font-weight:700;font-variant-numeric:tabular-nums}
 
+#upd{left:50%;bottom:16px;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:12px;font-weight:900;color:var(--amber);white-space:nowrap;padding:8px 14px}
 #msg{position:absolute;left:0;right:0;top:15%;text-align:center;font:900 clamp(26px,4.6vh,46px) var(--f-ui);-webkit-text-stroke:1.5px #000;text-shadow:0 3px 0 #000,0 0 18px #000c;opacity:0;pointer-events:none}
 #msg.show{animation:msg 3s ease-out forwards}
 @keyframes msg{0%{opacity:0;transform:scale(1.25)}6%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
@@ -214,6 +215,7 @@ input:focus{outline:2px solid var(--amber)}
     </div>
   </section>
   <div id="msg"></div>
+  <div class="panel" id="upd" hidden>نسخة جديدة من اللعبة متوفرة <button id="bUpd">تحديث الآن</button></div>
 </div>
 <div id="tip" hidden></div>
 <div id="loading">جاري تجهيز الأسطول...</div>
@@ -1274,12 +1276,13 @@ const NET = {
   save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, dbl: this.dbl, pl: this.pl, rb: this.rb, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: 1, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: GAME_V, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
     if (!this.room) return null;
-    let best = null; for (const p of this.room.peers()) { if (p.isMe) continue; const pr = p.presence || {}; if (pr.v !== 1 || typeof pr.seat !== 'string' || pr.seat === this.seat) continue; if (!best || p.updatedAt > best.updatedAt) best = p; }
+    this.mismatch = false;
+    let best = null; for (const p of this.room.peers()) { if (p.isMe) continue; const pr = p.presence || {}; if (typeof pr.seat === 'string' && pr.seat !== this.seat && pr.v !== GAME_V) this.mismatch = true; if (pr.v !== GAME_V || typeof pr.seat !== 'string' || pr.seat === this.seat) continue; if (!best || p.updatedAt > best.updatedAt) best = p; }
     return best ? best.presence : null;
   },
   same() { const o = this.opp; return !!o && o.round === this.round; },
@@ -1385,6 +1388,7 @@ function peerRoom() {
     }
   };
 }
+const GAME_V = 8;
 const STANDALONE = !(window.claude && typeof window.claude.use === 'function');
 async function roomApi() {
   if (NET.api !== undefined) return NET.api;
@@ -1746,7 +1750,8 @@ function ui() {
     let line = '', col = '#ffd98a';
     if (online) {
       const o = NET.opp;
-      if (!o) line = 'بانتظار صديقك في الغرفة «' + NET.code + '»';
+      if (!o && NET.mismatch) { line = 'صديقك يستخدم نسخة مختلفة من اللعبة! حدّثوا الصفحة أنتم الاثنين'; col = '#ff9a80'; }
+      else if (!o) line = 'بانتظار صديقك في الغرفة «' + NET.code + '»';
       else if (o.round < NET.round) line = 'بانتظار موافقة ' + (o.nick || 'الخصم') + ' على إعادة المباراة';
       else if (o.round > NET.round) line = (o.nick || 'الخصم') + ' في مباراة أحدث';
       else if (o.ready) { line = (o.nick || 'الخصم') + ' جاهز للمعركة!'; col = '#8dffc4'; }
@@ -1763,7 +1768,7 @@ function ui() {
     let t, col;
     const waiting = shells.some(q => q.t >= 1 && !q.out);
     const raidOn_ = flights.some(q => q.raid);
-    if (mode === 'online' && !NET.opp) { t = 'انقطع اتصال الخصم، بانتظار عودته...'; col = '#ffb08a'; }
+    if (mode === 'online' && !NET.opp) { t = NET.mismatch ? 'صديقك على نسخة مختلفة، حدّثوا الصفحة' : 'انقطع اتصال الخصم، بانتظار عودته...'; col = '#ffb08a'; }
     else if (raidOn_) { t = 'غارة جوية معادية!'; col = '#ff7050'; }
     else if (waiting) { t = 'بانتظار رد الخصم...'; col = '#ffe79a'; }
     else if (shells.length || queue.length) { t = shells.length > 1 ? 'ضربة مزدوجة في الجو!' : 'قذيفة في الجو...'; col = '#ffe79a'; }
@@ -1825,6 +1830,7 @@ $('ui').addEventListener('click', e => {
     case 'bOverMenu': goMenu(); break;
     case 'bInv': { const k = b.dataset.pw; if (armed === k) armed = null; else if (k === 'plane') { if (planeReady(0)) armed = 'plane'; } else if (inv[k] > 0) { armed = k; if (k === 'bazooka' && !giraffeAlive(0)) { armed = null; say('سفينة الزرافات غرقت!', '#ff8a70'); } } pick1 = null; break; }
     case 'bPick': { const k = b.dataset.pw; inv[k]++; pendingPick = Math.max(0, pendingPick - 1); play('place', .8); say('حصلت على: ' + PW_NAME[k], '#ffd84d'); break; }
+    case 'bUpd': location.replace(location.pathname + '?u=' + Date.now() + location.hash); break;
     case 'bSpy': cheat = !cheat; b.classList.toggle('on', cheat); break;
     case 'bView': viewMine = !viewMine; break;
     case 'bAgain': if (mode === 'online') netRematch(); else goPlace(); break;
@@ -1844,6 +1850,10 @@ if (STANDALONE) {
   const hc = location.hash.slice(1).toLowerCase();
   if (/^[a-z0-9]{3,8}$/.test(hc)) { $('code').value = hc; setTimeout(() => setPhase('lobby'), 0); }
 }
+async function checkUpdate() {
+  try { const t = await (await fetch(location.pathname + '?check=' + Date.now(), { cache: 'no-store' })).text(); const m = t.match(/const GAME_V = (\d+)/); if (m && +m[1] > GAME_V) $('upd').hidden = false; } catch (e) {}
+}
+if (STANDALONE && location.protocol.startsWith('http')) { setTimeout(checkUpdate, 4000); setInterval(checkUpdate, 90000); }
 function inviteLink(code) { return location.origin + location.pathname + '#' + code; }
 
 // ================================================================ power-up icons (small 3D renders)
