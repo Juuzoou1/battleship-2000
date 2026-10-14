@@ -277,7 +277,9 @@ class Board {
 // a shielded ship shrugs off one hit; the shooter only ever sees a miss there
 function defend(board, x, y) {
   const i = board.shipAt(x, y), s = i >= 0 ? board.ships[i] : null;
-  if (s && s.shield && !s.sunk) { s.shield = false; s.sealed |= 1 << s.cells().findIndex(c => c[0] === x && c[1] === y); board.shot[y][x] = 1; return { r: 'M', blocked: true }; }
+  const bit = s ? 1 << s.cells().findIndex(c => c[0] === x && c[1] === y) : 0;
+  let left = s ? s.len : 0; if (s) { let b = s.hits | s.sealed | bit; while (b) { left -= b & 1; b >>= 1; } }
+  if (s && s.shield && !s.sunk && left > 0) { s.shield = false; s.sealed |= 1 << s.cells().findIndex(c => c[0] === x && c[1] === y); board.shot[y][x] = 1; return { r: 'M', blocked: true }; }
   return board.fire(x, y);
 }
 function aiTarget(b, level) {
@@ -1027,21 +1029,22 @@ const PW_NAME = { plane: 'طائرة الحاملة', double: 'ضربتين مع
 const PW_DESC = { double: 'تطلق قذيفتين على هدفين في نفس الوقت', radar: 'رادار أخضر يكشف المربعات حول نقطة في مياه الخصم', shield: 'يحمي سفينة من ضربة واحدة والخصم يظنها خطأ', bazooka: 'زرافة تطلع ببازوكا وتصيب هدفا صحيحا' };
 let inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }, aiInv = { double: 0, shield: 0, bazooka: 0 };
 const giraffeAlive = b => boards[b].ships.some(q => q.kind === 6 && !q.sunk);
+// a cell we already fired at online (a plane shot down before dropping does not count)
+function netUsed(x, y) { if (mode !== 'online') return false; const r = NET.oRes(); return NET.shots.some((q, i) => q[0] === x && q[1] === y && !(r[i] && r[i].aa)); }
 const carrierAlive = b => boards[b].ships.some(q => q.kind === 0 && !q.sunk);
-const RAID_EVERY = 16, PLANE_CD = 4;
-let flights = [], raidDone = 0, planeLast = [-99, -99], swimmers = [];
+const RAID_EVERY = 16, PLANES = 4;
+let flights = [], raidDone = 0, planesLeft = [PLANES, PLANES], swimmers = [];
 const busy = () => shells.length > 0 || flights.length > 0;
 const shotCount = side => side === 0 ? (mode === 'online' ? NET.shots.length : stats[0][0]) : stats[1][0];
-const planeReady = side => carrierAlive(side) && shotCount(side) - planeLast[side] >= PLANE_CD;
-const planeWait = side => Math.max(0, PLANE_CD - (shotCount(side) - planeLast[side]));
+const planeReady = side => carrierAlive(side) && planesLeft[side] > 0;
 function freeCells(b) {
-  const out = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!boards[b].shot[y][x] && !(b === 1 && mode === 'online' && NET.shots.some(q => q[0] === x && q[1] === y))) out.push([x, y]);
+  const out = []; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (!boards[b].shot[y][x] && !(b === 1 && netUsed(x, y))) out.push([x, y]);
   return out;
 }
 const pickFree = (b, n) => { const f = freeCells(b), o = []; while (o.length < n && f.length) o.push(f.splice(ri(f.length), 1)[0]); return o; };
 // a plane flies from s to e; drops = [{x, y, out, remote, vol, idx, neutral}], released as it passes each cell
 function startFlight(b, mesh, s, e, drops, opts = {}) {
-  const D = vnorm(vsub(e, s)), f = { b, mesh, s, e, D, cruise: 3.2, t: 0, dur: vlen(vsub(e, s)) / (opts.speed || 7), drops, raid: !!opts.raid, shotDown: !!opts.shotDown, aaPos: opts.aaPos, p: s.slice(), down: false, hit: false };
+  const D = vnorm(vsub(e, s)), f = { b, mesh, s, e, D, cruise: 3.2, t: 0, dur: vlen(vsub(e, s)) / (opts.speed || 7), drops, raid: !!opts.raid, shotDown: !!opts.shotDown, aaPos: opts.aaPos, onDown: opts.onDown, p: s.slice(), down: false, hit: false };
   f.drops.forEach(d => { const c = cellCenter(b, d.x, d.y); d.c = [c[0], c[1], 0]; });
   f.killC = [BC[b][0], BC[b][1], 0]; mesh.visible = true; flights.push(f); return f;
 }
@@ -1062,7 +1065,7 @@ function stepFlights(dt) {
         const a = f.aaPos || [f.killC[0], f.killC[1] - N / 2, .2];
         for (let i = 0; i < 3; i++) { const dir = vnorm(vadd(vsub(f.p, a), [rnd(-.3, .3), rnd(-.3, .3), rnd(-.2, .2)])); fx.add({ p: vadd(a, [0, 0, .35]), v: vmul(dir, 22), life: vlen(vsub(f.p, a)) / 22, s0: .09, s1: .09, c0: [1, .9, .4, 1], c1: [1, .5, .1, 1] }); }
         if (Math.random() < .5) fx.add({ p: vadd(f.p, [rnd(-.8, .8), rnd(-.8, .8), rnd(-.4, .4)]), life: 1.2, s0: .2, s1: .9, c0: [.1, .1, .1, .8], c1: [.2, .2, .2, 0], k: 1.25, add: false });
-        if (time - f.aaT > .6) { f.down = true; f.vz = .5; f.roll = 0; f.dive = 0; fx.explosion(f.p, 1.2); play('boom', .8);
+        if (time - f.aaT > .6) { f.down = true; f.vz = .5; f.roll = 0; f.dive = 0; fx.explosion(f.p, 1.2); play('boom', .8); if (f.onDown) f.onDown();
           say(f.b === 0 ? 'سفينة الدفاع الجوي أسقطت الطيارة!' : 'دفاع ' + foe() + ' الجوي أسقط الطيارة', '#9dffd0'); }
       }
       if (u >= 1) { f.mesh.visible = false; flights.splice(flights.indexOf(f), 1); continue; }
@@ -1075,15 +1078,13 @@ function stepFlights(dt) {
 function encRaid(r) { return r.down ? 'X' : r.cells.map(([x, y, o]) => e36(x) + e36(y) + encRes(o)).join(','); }
 function decodeRaid(str) { str = String(str || ''); if (str === 'X') return { down: true }; return { cells: str.split(',').filter(Boolean).map(t => [d36(t[0]), d36(t[1]), parseRes(t.slice(2))[0] || { r: 'M' }]) }; }
 function raidOn(b) {
-  const aa = boards[b].ships.find(q => q.kind === 7);
-  if (aa && !aa.sunk) return { down: true };
   return { cells: pickFree(b, 2).map(([x, y]) => { const o = defend(boards[b], x, y); pendingVis.add(vkey(b, x, y)); if (o.r === 'S') { const q = boards[b].ships.find(z => z.kind === o.ship.kind); if (q) q.hold = true; } return [x, y, o]; }) };
 }
 function aaPosOf(b) { const q = boards[b].ships.find(z => z.kind === 7 && !z.sunk); if (!q) return null; const t = shipMatrix(b, q, time); return t.pos; }
 function raidFlight(b, r, remote) {
   const c = BC[b], s = [c[0] + rnd(-2, 2), c[1] + N / 2 + 14, 3.2], e = [c[0] + rnd(-2, 2), c[1] - N / 2 - 14, 3.2];
   const aaPos = b === 0 || mode === 'ai' ? aaPosOf(b) : null;
-  startFlight(b, bombers[b], s, e, r.down ? [] : r.cells.map(([x, y, o]) => ({ x, y, out: o, remote, neutral: true })), { raid: true, shotDown: r.down, aaPos, speed: 8 });
+  startFlight(b, bombers[b], s, e, r.down ? [] : r.cells.map(([x, y, o]) => ({ x, y, out: o, remote, neutral: true })), { raid: true, speed: 8 });
 }
 function startRaid(e) {
   say('غارة جوية! طيارة معادية تهاجم الطرفين', '#ff7050'); play('siren', .8); play('plane', .7);
@@ -1100,19 +1101,28 @@ function netRestoreRaids() {
   let mx = 0; for (const e in NET.rb) mx = Math.max(mx, +e);
   const orb = NET.opp?.rb || {};
   for (const k in orb) { if (+k > mx) continue; NET.rbSeen.add(+k); const r = decodeRaid(orb[k]); if (r.cells) for (const [x, y, o] of r.cells) applyRemote(x, y, o); }
-  raidDone = mx;
+  raidDone = mx; planesLeft[0] = Math.max(0, PLANES - NET.pl.length);
 }
 // the carrier's own plane: two random bombs instead of the normal shot, and the turn passes
+// is the air-defence ship of board b still afloat (as far as this side can know)?
+function aaUp(b) { return b === 0 || mode === 'ai' ? boards[b].ships.some(q => q.kind === 7 && !q.sunk) : !boards[b].ships.some(q => q.kind === 7 && q.sunk); }
+function planeDown(side, tb) {
+  // the shot is spent and the turn passes
+  if (side === 0) stats[0][0]++; else stats[1][0]++;
+  if (mode === 'ai') playerTurn = side === 1;
+  wait = .6; uiDirty = true;
+}
 function launchCarrierPlane(side) {
-  const tb = side === 0 ? 1 : 0, targets = pickFree(tb, 2);
-  if (targets.length < 2 || !planeReady(side)) { play('click', .4); return false; }
-  planeLast[side] = shotCount(side);
-  const vol = { total: 2, hits: 0, done: 0, plane: true };
-  if (side === 0 && mode === 'online') { NET.pl.push(NET.shots.length); NET.shots.push(...targets); NET.push(); }
+  const tb = side === 0 ? 1 : 0, targets = pickFree(tb, 1);
+  if (!targets.length || !planeReady(side)) { play('click', .4); return false; }
+  planesLeft[side]--;
+  const down = aaUp(tb), [x, y] = targets[0], vol = { total: 1, hits: 0, done: 0, plane: true };
+  if (side === 0 && mode === 'online') { NET.pl.push(NET.shots.length); NET.shots.push([x, y]); NET.push(); }
   const car = boards[side].ships.find(q => q.kind === 0), t = shipMatrix(side, car, time), dir = side === 0 ? 1 : -1;
   const e = [BC[tb][0] + dir * (N / 2 + 14), BC[tb][1] + rnd(-2, 2), 3.2];
-  startFlight(tb, fighters[side], [t.pos[0], t.pos[1], t.pos[2] + .45], e, targets.map(([x, y], i) => ({ x, y, vol, idx: side === 0 && mode === 'online' ? NET.shots.length - 2 + i : undefined })), { speed: 7.5 });
-  play('plane', .6); say(side === 0 ? 'طائرة الحاملة انطلقت!' : foe() + ' أطلق طائرة من حاملته!', side === 0 ? '#9dd8ff' : '#ff8a50');
+  startFlight(tb, fighters[side], [t.pos[0], t.pos[1], t.pos[2] + .45], e, down ? [] : [{ x, y, vol, idx: side === 0 && mode === 'online' ? NET.shots.length - 1 : undefined }],
+    { speed: 7.5, shotDown: down, aaPos: tb === 0 || mode === 'ai' ? aaPosOf(tb) : null, onDown: () => { if (side === 1 || mode === 'ai') planeDown(side, tb); else { stats[0][0]++; wait = .6; } } });
+  play('plane', .6); say(side === 0 ? 'طائرة الحاملة انطلقت! (بقي ' + planesLeft[0] + ')' : foe() + ' أطلق طائرة من حاملته!', side === 0 ? '#9dd8ff' : '#ff8a50');
   return true;
 }
 function spawnSwimmers(b, s) {
@@ -1160,7 +1170,7 @@ function goMenu() { setSize(10); netLeave(); mode = 'ai'; boards = [Board.random
 function goPlace() { if (mode === 'ai' || !NET.room) setSize(SIZES[sizeIdx]); else if (!NET.opp || !SIZES.includes(NET.opp.n) || (NET.opp.j || 0) > NET.joined) setSize(SIZES[sizeIdx]); boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
 function startBattle() {
   if (mode === 'ai') boards[1] = Board.random();
-  flights.forEach(f => { f.mesh.visible = false; }); flights = []; raidDone = 0; planeLast = [-99, -99];
+  flights.forEach(f => { f.mesh.visible = false; }); flights = []; raidDone = 0; planesLeft = [PLANES, PLANES];
   streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
@@ -1192,7 +1202,7 @@ function fireBazooka() {
   let cells = [];
   if (mode === 'ai') cells = boards[1].ships.flatMap(q => q.cells());
   else { const f = String(NET.opp?.k || ''); for (let i = 0; i + 3 < f.length; i += 4) cells.push(...new Ship(+f[i], d36(f[i + 1]), d36(f[i + 2]), f[i + 3] === '1').cells()); }
-  cells = cells.filter(([x, y]) => boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(q => q[0] === x && q[1] === y)));
+  cells = cells.filter(([x, y]) => boards[1].shot[y][x] === 0 && !netUsed(x, y));
   if (!cells.length || !giraffeAlive(0)) { play('click', .4); return; }
   inv.bazooka--; uiDirty = true;
   const [x, y] = cells[ri(cells.length)], g = boards[0].ships.find(q => q.kind === 6), t = shipMatrix(0, g, time);
@@ -1284,8 +1294,8 @@ const NET = {
     const myD = new Set(this.dbl), oD = this.oDbl(), myP = new Set(this.pl), oP = this.oPl();
     let me = this.first(), i = 0, j = 0;
     for (;;) {
-      if (me) { if (i >= mine) return true; const pl = myP.has(i), n = myD.has(i) || pl ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = oRes[i + q]; if (!r) return false; if (r.r !== 'M') hit = true; } i += n; if (!hit || pl) me = false; }
-      else { if (j >= theirs) return false; const pl = oP.has(j), n = oD.has(j) || pl ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = myRes[j + q]; if (!r) return false; if (r.r !== 'M') hit = true; } j += n; if (!hit || pl) me = true; }
+      if (me) { if (i >= mine) return true; const pl = myP.has(i), n = myD.has(i) ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = oRes[i + q]; if (!r) return false; if (r.r !== 'M') hit = true; } i += n; if (!hit || pl) me = false; }
+      else { if (j >= theirs) return false; const pl = oP.has(j), n = oD.has(j) ? 2 : 1; let hit = false; for (let q = 0; q < n; q++) { const r = myRes[j + q]; if (!r) return false; if (r.r !== 'M') hit = true; } j += n; if (!hit || pl) me = true; }
     }
   },
   gameOver() { this.reveal = true; this.push(); }
@@ -1295,13 +1305,14 @@ function parseRes(s) {
   while (i < s.length) {
     const c = s[i];
     if (c === 'M') { out.push({ r: 'M' }); i++; }
+    else if (c === 'A') { out.push({ r: 'M', aa: true }); i++; }
     else if (c === 'H') { const k = s[i + 1]; if (k >= '0' && k <= '9') { out.push({ r: 'H', kind: +k }); i += 2; } else { out.push({ r: 'H' }); i++; } }
     else if (c === 'S' && i + 4 < s.length) { const k = +s[i + 1], x = d36(s[i + 2]), y = d36(s[i + 3]), h = s[i + 4] === '1'; if (k >= 0 && k < NK) out.push({ r: 'S', ship: { kind: k, x, y, h } }); i += 5; }
     else break;
   }
   return out;
 }
-const encRes = o => o.r === 'S' ? 'S' + o.ship.kind + e36(o.ship.x) + e36(o.ship.y) + (o.ship.h ? 1 : 0) : o.r === 'H' ? 'H' + (o.kind ?? 0) : 'M';
+const encRes = o => o.aa ? 'A' : o.r === 'S' ? 'S' + o.ship.kind + e36(o.ship.x) + e36(o.ship.y) + (o.ship.h ? 1 : 0) : o.r === 'H' ? 'H' + (o.kind ?? 0) : 'M';
 
 // Local stand-in for the room when the page runs outside claude.ai (two tabs on one machine).
 function mockRoom() {
@@ -1414,6 +1425,7 @@ function netRestoreBattle() {
   NET.shots.forEach(([x, y], i) => { const o = res[i]; if (!o) return; applyRemote(x, y, o); stats[0][0]++; if (o.r !== 'M') stats[0][1]++; });
 }
 function applyRemote(x, y, o) {
+  if (o.aa) return;
   const b = boards[1];
   b.shot[y][x] = o.r === 'M' ? 1 : 2;
   if (o.r === 'S') { const s = new Ship(o.ship.kind, o.ship.x, o.ship.y, o.ship.h); s.hits = (1 << s.len) - 1; b.ships = b.ships.filter(q => q.kind !== s.kind); b.ships.push(s); }
@@ -1432,6 +1444,8 @@ function netTick() {
   let changed = false;
   while (NET.res.length < theirs.length && phase === 'battle') {
     const [x, y] = theirs[NET.res.length];
+    const isPlane = NET.oPl().has(NET.res.length);
+    if (isPlane && aaUp(0)) { NET.res.push('A'); changed = true; queue.push({ target: 0, x, y, out: { r: 'M', aa: true }, plane: true }); continue; }
     if (boards[0].shot[y][x]) { NET.res.push(encRes({ r: boards[0].shot[y][x] === 1 ? 'M' : 'H' })); changed = true; continue; }
     const o = defend(boards[0], x, y); NET.res.push(encRes(o)); NET.inc.push([x, y]); changed = true;
     pendingVis.add(vkey(0, x, y)); if (o.r === 'S') { const s = boards[0].ships.find(q => q.kind === o.ship.kind); if (s) s.hold = true; }
@@ -1533,6 +1547,7 @@ function update(dt) {
         if (sh.t < 1) { fx.shell(p, dt); if (sh.rocket) fx.add({ p, v: [0, 0, .3], life: .5, s0: .35, s1: .1, c0: [1, .7, .2, 1], c1: [1, .2, 0, 0], k: 1.1 }); continue; }
         let out = sh.out;
         if (out && sh.remote) applyRemote(sh.x, sh.y, out);
+        else if (!out && mode === 'online' && sh.target === 1 && NET.oRes()[sh.idx]?.aa) { shells.splice(shells.indexOf(sh), 1); fx.explosion(sh.to, .8); say('دفاع ' + foe() + ' الجوي أسقط طائرتك', '#ff8a60'); stats[0][0]++; wait = .6; continue; }
         else if (!out && mode === 'online' && sh.target === 1) { const o = NET.oRes()[sh.idx]; if (o) { applyRemote(sh.x, sh.y, o); out = o; } }
         else if (!out) out = defend(boards[sh.target], sh.x, sh.y);
         if (out) { shells.splice(shells.indexOf(sh), 1); showImpact(sh.target, sh.x, sh.y, out, sh.vol, sh.neutral); if (phase !== 'battle') break; }
@@ -1540,9 +1555,9 @@ function update(dt) {
     } else if (wait > 0) wait -= dt;
     else if (queue.length) {
       const q = queue.shift();
-      if (q.plane && queue.length) {
-        const q2 = queue.shift(), vol = { total: 2, hits: 0, done: 0, plane: true };
-        startFlight(0, fighters[1], [BC[1][0] + N / 2 + 6, BC[1][1] + rnd(-2, 2), 3.2], [BC[0][0] - N / 2 - 14, BC[0][1] + rnd(-2, 2), 3.2], [q, q2].map(z => ({ x: z.x, y: z.y, out: z.out, vol })), { speed: 7.5 });
+      if (q.plane) {
+        const vol = { total: 1, hits: 0, done: 0, plane: true }, down = !!q.out.aa;
+        startFlight(0, fighters[1], [BC[1][0] + N / 2 + 6, BC[1][1] + rnd(-2, 2), 3.2], [BC[0][0] - N / 2 - 14, BC[0][1] + rnd(-2, 2), 3.2], down ? [] : [{ x: q.x, y: q.y, out: q.out, vol }], { speed: 7.5, shotDown: down, aaPos: aaPosOf(0), onDown: () => { stats[1][0]++; } });
         play('plane', .6); say(foe() + ' أطلق طائرة من حاملته!', '#ff8a50');
       } else {
         const vol = q.vol && queue.length ? { total: 2, hits: 0, done: 0 } : null;
@@ -1556,7 +1571,7 @@ function update(dt) {
       else if (clicked && click && click[0] === 1 && armed === 'radar') { placeRadar(click[1], click[2]); inv.radar--; armed = null; uiDirty = true; }
       else if (clicked && click && click[0] === 1) {
         const [, x, y] = click;
-        const free = boards[1].shot[y][x] === 0 && !(mode === 'online' && NET.shots.some(s => s[0] === x && s[1] === y));
+        const free = boards[1].shot[y][x] === 0 && !netUsed(x, y);
         if (!free || (pick1 && pick1[0] === x && pick1[1] === y)) play('click', .4);
         else if (armed === 'double' && !pick1) { pick1 = [x, y]; play('rotate', .6); uiDirty = true; }
         else {
@@ -1569,7 +1584,7 @@ function update(dt) {
     } else if (mode === 'ai') {
       const [x, y] = aiTarget(boards[0], level);
       const open = boards[0].ships.flatMap(q => q.sunk ? [] : q.cells()).filter(([cx, cy]) => !boards[0].shot[cy][cx]);
-      if (planeReady(1) && Math.random() < .3 && launchCarrierPlane(1)) {}
+      if (planeReady(1) && Math.random() < .2 && launchCarrierPlane(1)) {}
       else if (aiInv.bazooka > 0 && giraffeAlive(1) && open.length) { aiInv.bazooka--; const [bx, by] = open[ri(open.length)]; play('rocket', .7); launch(0, bx, by, { rocket: true }); say(foe() + ' أطلق بازوكا الزرافة!', '#ff8a50'); }
       else if (aiInv.double > 0) {
         aiInv.double--; boards[0].shot[y][x] = 9; const s2 = aiTarget(boards[0], level); boards[0].shot[y][x] = 0;
@@ -1717,7 +1732,7 @@ function fleetList(ul, b) {
   if (ul.innerHTML !== html) ul.innerHTML = html;
 }
 function ui() {
-  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), flights.length, planeWait(0), carrierAlive(0), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
+  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), flights.length, planesLeft[0], carrierAlive(0), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
   if (sig === lastUi && !uiDirty) return; lastUi = sig; uiDirty = false;
   setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSize', 'الخريطة: ' + SIZE_NAMES[sizeIdx]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
   if (phase === 'place') {
@@ -1763,7 +1778,7 @@ function ui() {
     $('bView').hidden = phase !== 'battle' || W / H >= 1.15; setText('bView', viewMine ? 'شبكة ' + foe() : 'شبكتي');
     setText('banner', t); $('banner').style.color = col;
     let ih = '';
-    if (carrierAlive(0)) { const rd = planeReady(0); ih += `<button data-act="inv" data-pw="plane" class="${armed === 'plane' ? 'armed' : ''}" ${rd ? '' : 'disabled'}><img src="${ICONS.plane}" alt=""><span>${PW_NAME.plane}</span><b>${rd ? 'جاهزة' : 'بعد ' + planeWait(0)}</b></button>`; }
+    if (carrierAlive(0) && planesLeft[0] > 0) { const rd = planeReady(0); ih += `<button data-act="inv" data-pw="plane" class="${armed === 'plane' ? 'armed' : ''}" ${rd ? '' : 'disabled'}><img src="${ICONS.plane}" alt=""><span>${PW_NAME.plane}</span><b>×${planesLeft[0]}</b></button>`; }
     for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
     if (!PW.some(k => inv[k] > 0)) ih += '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
     if ($('invList').innerHTML !== ih) $('invList').innerHTML = ih;
