@@ -1517,8 +1517,9 @@ for (let b = 0; b < 2; b++) {
   for (let i = 0; i < 14; i++) { for (const kind of ['n', 'r']) { const s = document.createElement('span'); s.textContent = kind === 'n' ? String(i + 1) : ROWS[i]; s.style.color = col; labelBox.appendChild(s); lab.push({ s, b, i, kind }); } }
   const t = document.createElement('span'); t.className = 'ttl'; t.style.color = col; labelBox.appendChild(t); lab.push({ s: t, b, kind: 't' });
 }
+const projPx = (x, y) => { tmpV.set(x, y, GRID_Z).project(camera); return [(tmpV.x + 1) / 2 * W, (1 - tmpV.y) / 2 * H]; };
 function labels() {
-  const show = phase === 'place' || phase === 'battle';
+  const show = phase === 'place' || phase === 'battle', fs = [0, 1].map(b => { const a = projPx(...cellCenter(b, 0, 0)), c = projPx(...cellCenter(b, 1, 0)); return Math.round(clamp(Math.hypot(c[0] - a[0], c[1] - a[1]) * .62, 8, 16)) + 'px'; });
   for (const l of lab) {
     const on = show && !(l.i >= N) && !(phase === 'place' && l.b === 1) && !(l.kind === 't' && phase !== 'battle');
     if (!on) { if (l.s.style.display !== 'none') l.s.style.display = 'none'; continue; }
@@ -1526,6 +1527,7 @@ function labels() {
     if (l.kind === 'n') tmpV.set(c[0] - (N - 1) / 2 + l.i, c[1] + N / 2 + .55, GRID_Z); else if (l.kind === 'r') tmpV.set(c[0] + N / 2 + .55, c[1] + (N - 1) / 2 - l.i, GRID_Z); else { tmpV.set(c[0], c[1] + N / 2 + 1.6, GRID_Z); const t = l.b === 0 ? 'أسطولك' : mode === 'online' ? 'مياه الخصم' : 'مياه العدو'; if (l.s.textContent !== t) l.s.textContent = t; }
     tmpV.project(camera);
     if (tmpV.z > 1) { l.s.style.display = 'none'; continue; }
+    if (l.kind !== 't' && l.s.style.fontSize !== fs[l.b]) l.s.style.fontSize = fs[l.b];
     l.s.style.display = ''; l.s.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-50%)`;
   }
   for (const bb of bubbles.slice()) {
@@ -1597,7 +1599,7 @@ function ui() {
     for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
     if (!ih) ih = '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
     if ($('invList').innerHTML !== ih) $('invList').innerHTML = ih;
-    $('inv').hidden = phase !== 'battle';
+    $('inv').hidden = phase !== 'battle' || (W <= 760 && !PW.some(k => inv[k] > 0));
     $('pick').hidden = !(pendingPick > 0 && phase === 'battle');
     if (pendingPick > 0) { let ph = ''; for (const k of PW) { if (k === 'bazooka' && !giraffeAlive(0)) continue; ph += `<button data-act="pick" data-pw="${k}"><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><small>${PW_DESC[k]}</small></button>`; } if ($('pickList').innerHTML !== ph) $('pickList').innerHTML = ph; } $('banner').hidden = $('hint').hidden = phase === 'over';
   }
@@ -1649,6 +1651,12 @@ $('ui').addEventListener('click', e => {
 $('nick').value = store.get('bs-nick') || 'قبطان ' + (10 + ri(90));
 if (STANDALONE) {
   $('howto').innerHTML = '<li>اضغط «غرفة جديدة» ثم «نسخ رابط الدعوة» وأرسله لصديقك (واتساب أو أي برنامج).</li><li>صديقك يفتح الرابط ويضغط «دخول»، والرمز يكون مكتوبا تلقائيا.</li><li>يعمل بين أي جهازين على الإنترنت، بدون حساب أو تثبيت.</li>';
+  let taps = [];
+  document.querySelector('#title .chrome').parentElement.style.pointerEvents = 'auto';
+  document.querySelector('#title .chrome').addEventListener('click', () => {
+    taps = taps.filter(t => performance.now() - t < 2500); taps.push(performance.now());
+    if (taps.length >= 5) { taps = []; const on = !isCaptain(); store.set('bs-captain', on); play('ping', .5, on ? 1.5 : .7); $('foot').style.color = on ? '#ff8a7a' : ''; setTimeout(() => { $('foot').style.color = ''; }, 900); }
+  });
   if (location.hash === '#captain-sea') { store.set('bs-captain', true); history.replaceState(null, '', location.pathname); }
   const hc = location.hash.slice(1).toLowerCase();
   if (/^[a-z0-9]{3,8}$/.test(hc)) { $('code').value = hc; setTimeout(() => setPhase('lobby'), 0); }
