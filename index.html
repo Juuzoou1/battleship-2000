@@ -818,6 +818,29 @@ function stepLife(dt) {
     if (Math.abs(t - .6) < dt || Math.abs(t - 7.8) < dt) fx.splash([x, w.y, 0], 1.6);
   }
 }
+const orangeMeshes = [...Array(5)].map(() => { const m = new T.Mesh(orangeFruit().geo(), pwMat()); m.visible = false; scene.add(m); return m; });
+let flyingOranges = [], ogSeen = 0, lastToss = -9;
+const orangeAlive = b => boards[b].ships.some(q => q.kind === 5 && !q.sunk);
+function tossOrange(fromB, toB, x, y) {
+  const mesh = orangeMeshes.find(m => !m.visible); if (!mesh) return;
+  const src = boards[fromB].ships.find(q => q.kind === 5), c = cellCenter(toB, x, y);
+  const from = fromB === 0 && src ? (t => [t.pos[0], t.pos[1], t.pos[2] + .5])(shipMatrix(0, src, time)) : [BC[1][0] + rnd(-H5(), H5()), H5() + rnd(2, 4), .5];
+  const to = [c[0], c[1], .1], dist = vlen(vsub(to, from));
+  mesh.visible = true; mesh.scale.setScalar(3.2);
+  flyingOranges.push({ mesh, from, to, t: 0, dur: .7 + dist * .035, arc: 1.5 + dist * .15, spin: rnd(4, 9) });
+  play('rotate', .5, .7);
+}
+function stepOranges(dt) {
+  for (const o of flyingOranges.slice()) {
+    o.t += dt / o.dur; const t = Math.min(1, o.t), p = vadd(vadd(vmul(o.from, 1 - t), vmul(o.to, t)), [0, 0, o.arc * 4 * t * (1 - t)]);
+    o.mesh.position.set(...p); o.mesh.rotation.set(time * o.spin, time * o.spin * .7, 0);
+    if (t >= 1) {
+      o.mesh.visible = false; flyingOranges.splice(flyingOranges.indexOf(o), 1); play('splash', .5, 1.3);
+      for (let i = 0; i < 26; i++) { const d = rdir(); fx.add({ p: o.to.slice(), v: [d[0] * 1.6, d[1] * 1.6, Math.abs(d[2]) * 2.5 + 1], g: 6, life: rnd(.5, .9), s0: rnd(.08, .16), s1: .04, c0: [1, .58, .08, 1], c1: [1, .45, .05, 0], k: 1.1, add: false }); }
+      for (let i = 0; i < 4; i++) fx.add({ p: [o.to[0] + rnd(-.3, .3), o.to[1] + rnd(-.3, .3), .06], v: [rnd(-.2, .2), rnd(-.2, .2), 0], drag: .3, life: rnd(8, 14), s0: .13, s1: .13, c0: [1, .52, .06, 1], c1: [1, .5, .05, 0], k: 0, add: false });
+    }
+  }
+}
 const shipGeoEmpty = [PLAYER, ENEMY].map(p => giraffeShip(p, false).geo());
 const planeMesh = (big, col, mark) => { const m = new T.Mesh(planeModel(big, col, mark).geo(), pwMat()); m.visible = false; scene.add(m); return m; };
 const bombers = [planeMesh(true, [.3, .3, .27], [.75, .12, .1]), planeMesh(true, [.3, .3, .27], [.75, .12, .1])];
@@ -1305,6 +1328,7 @@ function startBattle() {
   streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
+  ogSeen = mode === 'online' ? (NET.opp?.og || 0) : 0; flyingOranges.forEach(o => { o.mesh.visible = false; }); flyingOranges = [];
   battleT = 0; fireSpots.length = 0; introT = 0; wait = INTRO;
   $('cineSub').textContent = mode === 'online' ? (NET.nick || 'أنت') + ' ضد ' + (NET.opp?.nick || 'الخصم') : 'أسطولك ضد أسطول العدو';
   setPhase('battle'); say(playerTurn ? 'بدأت المعركة! أطلق النار أولا' : 'بدأت المعركة! الخصم يبدأ', '#ffd36b');
@@ -1409,7 +1433,7 @@ const NET = {
   save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, dbl: this.dbl, pl: this.pl, rb: this.rb, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: GAME_V, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, gm: NET.gm || gmPref, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: GAME_V, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, og: NET.og || 0, ogc: NET.ogc || '', gm: NET.gm || gmPref, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
@@ -1521,7 +1545,7 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 13;
+const GAME_V = 14;
 // Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
 // works from any network (mobile data included). Each player keeps one retained message holding
 // the same state object the claude.ai room's presence carries; the game connects to two brokers
@@ -1624,6 +1648,7 @@ function netTick() {
   }
   if (phase === 'place' && NET.ready && NET.opp.ready && NET.opp.n === N && boards[0].ships.length === NK) { netRestoreBattle(); startBattle(); netRestoreRaids(); }
   if (phase !== 'battle' && phase !== 'over') return;
+  if ((NET.opp.og || 0) > ogSeen) { ogSeen = NET.opp.og; const c = String(NET.opp.ogc || ''); if (phase === 'battle' && c.length === 2) { tossOrange(1, 0, clamp(d36(c[0]), 0, N - 1), clamp(d36(c[1]), 0, N - 1)); say((NET.opp.nick || 'الخصم') + ' رماك ببرتقالة!', '#ffb040'); } }
   // answer every new shot at us right away; the shell animation shows it a moment later
   const theirs = NET.oShots();
   let changed = false;
@@ -1716,7 +1741,7 @@ function update(dt) {
     if (i >= 0 && !boards[0].ships[i].sunk && !boards[0].ships[i].shield) { boards[0].ships[i].shield = true; inv.shield--; armed = null; play('ping', .7, 1.3); say('الدرع يحمي ' + NAMES[boards[0].ships[i].kind], '#7fc8ff'); uiDirty = true; }
     else play('click', .4);
   }
-  stepSwimmers(dt); stepLife(dt); stepIntro(dt);
+  stepSwimmers(dt); stepLife(dt); stepIntro(dt); stepOranges(dt);
   if (phase === 'battle') stepFlights(dt); else if (flights.length) { flights.forEach(f => { f.mesh.visible = false; }); flights = []; }
   if (bz && bz.fired && time - bz.t0 > 3) bz = null;
   if (phase === 'battle' && !busy() && !queue.length && wait <= 0 && !(bz && !bz.fired)) {
@@ -1772,6 +1797,7 @@ function update(dt) {
       }
     } else if (mode === 'ai') {
       aiShop();
+      if (orangeAlive(1) && Math.random() < .08) { tossOrange(1, 0, ri(N), ri(N)); say('العدو رماك ببرتقالة!', '#ffb040'); }
       const [x, y] = aiTarget(boards[0], level);
       const open = boards[0].ships.flatMap(q => q.sunk ? [] : q.cells()).filter(([cx, cy]) => !boards[0].shot[cy][cx]);
       if (planeReady(1) && Math.random() < .2 && launchCarrierPlane(1)) {}
@@ -2032,6 +2058,7 @@ function ui() {
       if ($('shopList').innerHTML !== sh) $('shopList').innerHTML = sh;
     }
     let ih = '';
+    if (orangeAlive(0)) ih += `<button data-act="toss"><img src="${ICONS.orange}" alt=""><span>ارمِ برتقالة</span><b>مجانا</b></button>`;
     if (carrierAlive(0) && planesLeft[0] > 0) { const rd = planeReady(0); ih += `<button data-act="inv" data-pw="plane" class="${armed === 'plane' ? 'armed' : ''}" ${rd ? '' : 'disabled'}><img src="${ICONS.plane}" alt=""><span>${PW_NAME.plane}</span><b>×${planesLeft[0]}</b></button>`; }
     for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
     if (!PW.some(k => inv[k] > 0)) ih += money ? '<div class="none">اجمع العملات واشتر من المتجر</div>' : '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
@@ -2056,7 +2083,7 @@ function ui() {
 // ================================================================ buttons
 $('ui').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
-  if (b.dataset.act) { initAudio(); play('click', .6); switch (b.dataset.act) { case 'inv': b.id = 'bInv'; break; case 'pick': b.id = 'bPick'; break; case 'buy': b.id = 'bBuy'; break; } }
+  if (b.dataset.act) { initAudio(); play('click', .6); switch (b.dataset.act) { case 'inv': b.id = 'bInv'; break; case 'pick': b.id = 'bPick'; break; case 'buy': b.id = 'bBuy'; break; case 'toss': b.id = 'bToss'; break; } }
   initAudio(); play('click', .6);
   if (b.dataset.ship !== undefined) { const k = +b.dataset.ship, i = boards[0].ships.findIndex(s => s.kind === k); if (i >= 0) { horiz = boards[0].ships[i].h; boards[0].ships.splice(i, 1); } sel = k; uiDirty = true; return; }
   switch (b.id) {
@@ -2066,6 +2093,7 @@ $('ui').addEventListener('click', e => {
     case 'bSize': sizeIdx = (sizeIdx + 1) % 3; store.set('bs-size', sizeIdx); break;
     case 'bGm': gmPref = gmPref === 'money' ? 'classic' : 'money'; store.set('bs-gm', gmPref); break;
     case 'bShop': shopOpen = !shopOpen; break;
+    case 'bToss': if (phase === 'battle' && orangeAlive(0) && time - lastToss > .8) { lastToss = time; const x = ri(N), y = ri(N); tossOrange(0, 1, x, y); if (mode === 'online') { NET.og = (NET.og || 0) + 1; NET.ogc = e36(x) + e36(y); NET.push(); } } break;
     case 'bShopClose': shopOpen = false; break;
     case 'bBuy': buy(b.dataset.pw); break;
     case 'bSound': soundOn = !soundOn; store.set('bs-sound', soundOn); applyVolumes(); break;
@@ -2126,6 +2154,7 @@ function renderIcon(model, yaw, pitch) {
 try {
   ICONS.double = renderIcon(shellModel(), .5, .35); ICONS.radar = renderIcon(radarModel(), .7, .3);
   ICONS.coin = renderIcon(coinModel(), .35, .15);
+  ICONS.orange = renderIcon(orangeFruit(), .5, .5);
   ICONS.shield = renderIcon(shieldModel(), .25, .1); ICONS.plane = renderIcon(planeModel(false, [.32, .45, .7], [.95, .95, .95]), .6, .45); ICONS.bazooka = renderIcon(bazookaGiraffe(), 1.35, .15);
 } catch (e) { console.warn('icons', e); }
 
