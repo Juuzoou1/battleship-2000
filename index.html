@@ -93,6 +93,13 @@ input:focus{outline:2px solid var(--amber)}
 #msg{position:absolute;left:0;right:0;top:15%;text-align:center;font:900 clamp(26px,4.6vh,46px) var(--f-ui);-webkit-text-stroke:1.5px #000;text-shadow:0 3px 0 #000,0 0 18px #000c;opacity:0;pointer-events:none}
 #msg.show{animation:msg 3s ease-out forwards}
 @keyframes msg{0%{opacity:0;transform:scale(1.25)}6%{opacity:1;transform:scale(1)}80%{opacity:1}100%{opacity:0}}
+#cine{position:fixed;inset:0;pointer-events:auto;z-index:6;cursor:pointer}
+#cine .bar{position:absolute;left:0;right:0;height:12vh;background:#000;transition:transform .6s}
+#cine .bar.top{top:0}#cine .bar.bot{bottom:0}
+.cineTitle{position:absolute;left:0;right:0;bottom:16vh;text-align:center;direction:rtl;animation:cineIn 1.2s ease-out both}
+.cineTitle .chrome{font-size:clamp(46px,9vh,110px)}.cineSub{font:900 clamp(16px,2.6vh,26px) var(--f-ui);color:#e6efff;text-shadow:0 2px 0 #000;margin-top:4px}
+.cineSkip{position:absolute;right:16px;bottom:calc(12vh + 10px);color:#ffffffaa;font-size:13px}
+@keyframes cineIn{from{opacity:0;transform:translateY(20px) scale(.92)}to{opacity:1;transform:none}}
 #tip{position:fixed;padding:2px 10px;background:#000c1ddd;border:1.5px solid #64d8ffcc;font-weight:700;pointer-events:none;direction:rtl}
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:#0b1622;font:400 32px var(--f-display);color:var(--amber);z-index:5}
 
@@ -228,6 +235,7 @@ input:focus{outline:2px solid var(--amber)}
   <div class="panel" id="upd" hidden>نسخة جديدة من اللعبة متوفرة <button id="bUpd">تحديث الآن</button></div>
 </div>
 <div id="tip" hidden></div>
+<div id="cine" hidden><div class="bar top"></div><div class="bar bot"></div><div class="cineTitle"><div class="chrome" data-t="المعركة تبدأ">المعركة تبدأ</div><div class="cineSub" id="cineSub"></div></div><div class="cineSkip">اضغط للتخطي</div></div>
 <div id="loading">جاري تجهيز الأسطول...</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -668,6 +676,25 @@ function planeModel(big, col, mark) {
   else m.cyl([L / 2, 0, 0], [L / 2 + .01, 0, 0], .13, .13, 12, dark, true);
   return m;
 }
+function dolphinModel() {
+  const m = new Model(), C = [.45, .53, .62], B = [.82, .85, .88];
+  m.lathe([[-.55, .012], [-.45, .045], [-.25, .09], [.0, .11], [.22, .1], [.36, .07], [.44, .035], [.56, .018]], 0, 12, C);
+  m.ellipsoid([.05, 0, -.035], [.3, .07, .06], 10, 6, B);
+  m.tri([.05, 0, .09], [-.16, 0, .09], [-.12, 0, .26], C);
+  for (const sy of [-1, 1]) { m.tri([-.48, 0, 0], [-.66, sy * .17, -.02], [-.6, 0, 0], C); m.tri([.12, sy * .08, -.04], [-.02, sy * .2, -.09], [.02, sy * .08, -.05], C); }
+  m.ellipsoid([.4, .05, .03], [.012, .008, .012], 4, 3, [.05, .05, .05]); m.ellipsoid([.4, -.05, .03], [.012, .008, .012], 4, 3, [.05, .05, .05]);
+  return m;
+}
+function whaleModel() {
+  const m = new Model(), C = [.2, .24, .3];
+  m.lathe([[-2.2, .05], [-1.9, .2], [-1.2, .45], [-.2, .62], [.8, .6], [1.5, .48], [1.9, .3], [2.05, .1]], 0, 14, C);
+  m.ellipsoid([.4, 0, -.25], [1.4, .42, .32], 12, 6, [.55, .58, .6]);
+  for (const sy of [-1, 1]) { m.tri([-2.05, 0, 0], [-2.7, sy * .85, .05], [-2.35, 0, 0], C); m.tri([.9, sy * .45, -.25], [.4, sy * 1.1, -.45], [.55, sy * .4, -.3], C); }
+  m.ellipsoid([1.55, .32, .12], [.04, .03, .04], 4, 3, [.04, .04, .04]); m.ellipsoid([1.55, -.32, .12], [.04, .03, .04], 4, 3, [.04, .04, .04]);
+  return m;
+}
+function gullBody() { const m = new Model(); m.ellipsoid([0, 0, 0], [.12, .035, .035], 8, 5, [.95, .95, .95]); m.cyl([.11, 0, .01], [.17, 0, .005], .012, .004, 5, [1, .75, .2], false); m.tri([-.1, 0, 0], [-.18, .04, 0], [-.18, -.04, 0], [.9, .9, .9]); return m; }
+function gullWing(side) { const m = new Model(); m.block([-.04, 0, -.004], [.04, side * .22, .004], 0, 0, [.92, .93, .95]); m.block([-.03, side * .17, -.005], [.03, side * .26, .005], 0, 0, [.2, .2, .22]); return m; }
 const SHIP_FN = [carrier, battleship, cruiser, submarine, destroyer, orangeShip, giraffeShip, aaShip];
 
 // ================================================================ renderer & scene
@@ -680,6 +707,7 @@ scene.fog = new T.FogExp2(FOG, FOG_D);
 scene.background = FOG;
 const camera = new T.PerspectiveCamera(45, 1, .1, 2500);
 const dl = new T.DirectionalLight(new T.Color(1, .9, .74), .95); dl.position.copy(SUN).multiplyScalar(100); scene.add(dl);
+const fireLights = [0, 1, 2, 3].map(() => { const l = new T.PointLight(0xff7a2a, 0, 7, 2); scene.add(l); return l; });
 const hemi = new T.HemisphereLight(new T.Color(.42, .5, .62), new T.Color(.15, .21, .27), 1); hemi.position.set(0, 0, 1); scene.add(hemi);
 
 const NOISE_GLSL = `
@@ -689,14 +717,16 @@ float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*vn(p);p=p*2.03+vec2(
 
 // sky dome: gradient, sun and drifting procedural clouds
 const sky = new T.Mesh(new T.SphereGeometry(900, 32, 16), new T.ShaderMaterial({
-  uniforms: { uSun: { value: SUN }, uFog: { value: FOG }, uTime: { value: 0 } },
+  uniforms: { uSun: { value: SUN }, uFog: { value: FOG }, uTime: { value: 0 }, uZen: { value: new T.Color(.2, .4, .74) }, uNight: { value: 0 }, uMoon: { value: new T.Vector3(-.45, .75, .48).normalize() } },
   vertexShader: `varying vec3 vW; void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
-  fragmentShader: `uniform vec3 uSun,uFog;uniform float uTime;varying vec3 vW;${NOISE_GLSL}
-  void main(){vec3 d=normalize(vW-cameraPosition);float el=max(d.z,0.);vec3 c=mix(uFog,vec3(.2,.4,.74),pow(el,.55));
+  fragmentShader: `uniform vec3 uSun,uFog,uZen,uMoon;uniform float uTime,uNight;varying vec3 vW;${NOISE_GLSL}
+  void main(){vec3 d=normalize(vW-cameraPosition);float el=max(d.z,0.);vec3 c=mix(uFog,uZen,pow(el,.55));
   float s=max(dot(d,uSun),0.);c+=vec3(1.,.8,.52)*(pow(s,8.)*.3+pow(s,90.)*.6);
   if(d.z>.004){vec2 q=d.xy/(d.z+.07)*1.6+vec2(10.+uTime*.004,3.);float n=fbm(q);float cov=smoothstep(.5,.74,n)*smoothstep(0.,.1,d.z);
-  float n2=fbm(q+uSun.xy*.15);float lit=clamp((n-n2)*6.+.6,0.,1.);vec3 cc=mix(vec3(.58,.6,.68),vec3(1.,.97,.92),lit)+vec3(.25,.15,0.)*pow(s,6.);c=mix(c,cc,cov*.9);}
-  if(s>.9994)c=vec3(3.);gl_FragColor=vec4(c,1.);}`,
+  float n2=fbm(q+uSun.xy*.15);float lit=clamp((n-n2)*6.+.6,0.,1.);vec3 cc=(mix(vec3(.58,.6,.68),vec3(1.,.97,.92),lit)+vec3(.25,.15,0.)*pow(s,6.))*mix(1.,.16,uNight)+uFog*.25*uNight;c=mix(c,cc,cov*.9*(1.-.4*uNight));}
+  if(s>.9994&&uSun.z>-.02)c=vec3(3.);
+  if(uNight>0.&&d.z>0.){vec2 sp=d.xy/(d.z+.35)*70.;vec2 cell=floor(sp);float h=hash(cell);float tw=.6+.4*sin(uTime*3.+h*40.);float st=step(.985,h)*smoothstep(.45,.0,length(fract(sp)-.5))*tw*smoothstep(.0,.25,d.z);c+=vec3(st)*uNight*1.4;float m=max(dot(d,uMoon),0.);c+=vec3(.75,.8,.95)*(pow(m,40.)*.25+pow(m,900.)*.4)*uNight;if(m>.9993)c=mix(c,vec3(2.2,2.2,2.),uNight);}
+  gl_FragColor=vec4(c,1.);}`,
   side: T.BackSide, depthWrite: false, depthTest: false, fog: false
 }));
 sky.renderOrder = -10; sky.frustumCulled = false; scene.add(sky);
@@ -709,17 +739,18 @@ const water = (() => {
   for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const a = j * n + i, b = a + 1, c = a + n, d = c + 1; idx.push(a, b, d, a, d, c); }
   const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
   const mat = new T.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uSun: { value: SUN }, uFog: { value: FOG }, uFogD: { value: FOG_D }, uSt0: { value: new T.Vector4() }, uSt1: { value: new T.Vector4() } },
+    uniforms: { uTime: { value: 0 }, uSun: { value: SUN }, uFog: { value: FOG }, uFogD: { value: FOG_D }, uSt0: { value: new T.Vector4() }, uSt1: { value: new T.Vector4() }, uDay: { value: 1 }, uL0: { value: new T.Vector4() }, uL1: { value: new T.Vector4() }, uL2: { value: new T.Vector4() }, uL3: { value: new T.Vector4() }, uSky: { value: new T.Color(.28, .46, .78) } },
     vertexShader: `uniform float uTime;varying vec3 vW;varying vec3 vN;varying float vCrest;
     void wave(vec2 p,vec2 dir,float len,float amp,float c,inout float h,inout vec2 g){float k=6.2831853/len;vec2 d=normalize(dir);float ph=k*dot(d,p)-k*c*uTime;h+=amp*sin(ph);g+=amp*k*cos(ph)*d;}
     void main(){vec2 p=position.xy;float h=0.;vec2 g=vec2(0.);wave(p,vec2(1.,.3),7.,.075,1.2,h,g);wave(p,vec2(-.4,1.),4.3,.045,.9,h,g);wave(p,vec2(.7,-.7),2.7,.025,.75,h,g);wave(p,vec2(.2,1.),1.6,.012,.6,h,g);
     float f=1.-smoothstep(16.,40.,length(p));h*=f;g*=f;vW=vec3(p,h);vN=normalize(vec3(-g,1.));vCrest=h;gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.);}`,
-    fragmentShader: `uniform float uTime,uFogD;uniform vec3 uSun,uFog;uniform vec4 uSt0,uSt1;varying vec3 vW;varying vec3 vN;varying float vCrest;${NOISE_GLSL}
+    fragmentShader: `uniform float uTime,uFogD,uDay;uniform vec3 uSun,uFog,uSky;uniform vec4 uSt0,uSt1,uL0,uL1,uL2,uL3;varying vec3 vW;varying vec3 vN;varying float vCrest;
+    vec3 fire(vec4 L){return vec3(1.,.42,.1)*L.w*exp(-distance(vW.xy,L.xy)/L.z);}${NOISE_GLSL}
     void main(){float t=uTime;float a=fbm(vW.xy*1.4+vec2(t*.12,t*.07)),b=fbm(vW.xy*.7+vec2(-t*.06,t*.1)),c=vn(vW.xy*5.+vec2(t*.4,-t*.25));
     vec3 n=normalize(vN+vec3((a+b-1.)*.3+(c-.5)*.18,(b-a)*.3+(c-.5)*.18,0.));vec3 v=normalize(cameraPosition-vW);float ndv=max(dot(n,v),0.);
-    float fr=.03+.97*pow(1.-ndv,5.);vec3 r=reflect(-v,n);vec3 sk=mix(uFog,vec3(.28,.46,.78),clamp(r.z*1.6,0.,1.));
-    vec3 body=mix(vec3(.025,.12,.2),vec3(.05,.3,.36),clamp(.45+vCrest*3.+(a-.5)*.5,0.,1.));body*=.65+.55*max(dot(n,uSun),0.);
-    vec3 col=mix(body,sk,fr);float sd=max(dot(r,uSun),0.);col+=vec3(1.,.92,.75)*(pow(sd,700.)*6.+pow(sd,60.)*.3);
+    float fr=.03+.97*pow(1.-ndv,5.);vec3 r=reflect(-v,n);vec3 sk=mix(uFog,uSky,clamp(r.z*1.6,0.,1.));
+    vec3 body=mix(vec3(.025,.12,.2),vec3(.05,.3,.36),clamp(.45+vCrest*3.+(a-.5)*.5,0.,1.));body*=(.65+.55*max(dot(n,uSun),0.))*mix(.18,1.,uDay);
+    vec3 col=mix(body,sk,fr);float sd=max(dot(r,uSun),0.);col+=vec3(1.,.92,.75)*(pow(sd,700.)*6.+pow(sd,60.)*.3)*smoothstep(-.05,.05,uSun.z);col+=(fire(uL0)+fire(uL1)+fire(uL2)+fire(uL3))*(.6+.4*fr);
     col=mix(col,vec3(.85,.9,.92),smoothstep(.1,.16,vCrest+(b-.5)*.1)*.55);vec3 oj=vec3(1.,.48,.04)*(.65+.55*max(dot(n,uSun),0.))+vec3(1.,.85,.6)*pow(sd,60.)*.4;col=mix(col,oj,uSt0.w*smoothstep(uSt0.z,uSt0.z*.3,distance(vW.xy,uSt0.xy))*(.7+.3*a));col=mix(col,oj,uSt1.w*smoothstep(uSt1.z,uSt1.z*.3,distance(vW.xy,uSt1.xy))*(.7+.3*a));float d=distance(vW,cameraPosition)*uFogD;float f=exp(-d*d);
     gl_FragColor=vec4(mix(uFog,col,f),mix(.8,1.,max(fr,1.-f)));}`,
     transparent: true, depthWrite: true, fog: false
@@ -741,6 +772,52 @@ const radarMesh = new T.Mesh(radarModel().geo(), pwMat()); radarMesh.visible = f
 const bzMesh = new T.Mesh(bazookaGiraffe().geo(), pwMat()); bzMesh.visible = false; scene.add(bzMesh);
 const domeMat = new T.MeshPhongMaterial({ color: 0x3a8cff, emissive: 0x0a2a66, transparent: true, opacity: .28, depthWrite: false, shininess: 90, specular: 0xffffff, side: T.DoubleSide });
 const domes = [...Array(7)].map(() => { const m = new T.Mesh(new T.SphereGeometry(1, 24, 12, 0, TAU, 0, Math.PI / 2), domeMat); m.visible = false; m.renderOrder = 2; scene.add(m); return m; });
+const dolphins = [0, 1, 2].map(() => { const m = new T.Mesh(dolphinModel().geo(), new T.MeshPhongMaterial({ vertexColors: true, shininess: 80, specular: 0x999999, side: T.DoubleSide })); m.visible = false; scene.add(m); return m; });
+const whale = new T.Mesh(whaleModel().geo(), new T.MeshPhongMaterial({ vertexColors: true, shininess: 40, specular: 0x555555, side: T.DoubleSide })); whale.visible = false; scene.add(whale);
+const gullGeo = [gullBody().geo(), gullWing(1).geo(), gullWing(-1).geo()];
+const gulls = [...Array(6)].map((_, i) => { const g = new T.Group(), mat = new T.MeshPhongMaterial({ vertexColors: true, side: T.DoubleSide }); const parts = gullGeo.map(geo => new T.Mesh(geo, mat)); parts.forEach(p => g.add(p)); scene.add(g); return { g, parts, r: 9 + i * 2.2, h: 4 + (i % 3) * 1.2, sp: .18 + (i % 2) * .07, ph: i * 1.7, cx: (i % 2 ? 1 : -1) * 3 }; });
+let pod = null, whaleEv = null, nextPod = 6, nextWhale = 40;
+function stepLife(dt) {
+  // seagulls circle in the daylight and head off at night
+  gulls.forEach((q, i) => {
+    const a = time * q.sp + q.ph, away = nightF * 30, x = q.cx + Math.cos(a) * (q.r + away), y = 4 + Math.sin(a) * (q.r * .7 + away), z = q.h + Math.sin(time * .7 + i) * .4 + away * .3;
+    q.g.visible = nightF < .9; q.g.position.set(x, y, z); q.g.rotation.set(Math.sin(a) * .15, 0, a + Math.PI / 2, 'ZYX');
+    const flap = Math.sin(time * 9 + i * 2) * .55 * (Math.sin(time * .5 + i) > -.3 ? 1 : .1); q.parts[1].rotation.x = flap; q.parts[2].rotation.x = -flap;
+  });
+  // dolphins jump in a small pod every now and then
+  nextPod -= dt;
+  if (!pod && nextPod <= 0) {
+    const ang = rnd(0, TAU), c = [rnd(-4, 4), rnd(-N / 2 - 6, N / 2 + 6)], d = [Math.cos(ang), Math.sin(ang)];
+    pod = { t: 0, c, d, n: 2 + ri(2) }; nextPod = rnd(14, 26);
+  }
+  dolphins.forEach(m => m.visible = false);
+  if (pod) {
+    pod.t += dt; let alive = false;
+    for (let k = 0; k < pod.n; k++) {
+      const tl = pod.t - k * .45, jumps = 3, per = 1.25; if (tl < 0 || tl > jumps * per) { if (tl < jumps * per) alive = true; continue; } alive = true;
+      const j = Math.floor(tl / per), u = (tl - j * per) / per, air = u < .62, ua = u / .62;
+      const dist = tl * 2.6, side = (k - (pod.n - 1) / 2) * .7, px = pod.c[0] + pod.d[0] * dist - pod.d[1] * side, py = pod.c[1] + pod.d[1] * dist + pod.d[0] * side;
+      const z = air ? -.25 + 4 * 1.1 * ua * (1 - ua) : -.6, vz = air ? 4 * 1.1 * (1 - 2 * ua) : 0;
+      if (air && Math.abs(ua - .03) < .03 && Math.random() < .5) fx.splash([px, py, 0], .35);
+      if (air && Math.abs(ua - .97) < .03 && Math.random() < .5) fx.splash([px, py, 0], .3);
+      const m = dolphins[k]; m.visible = air; m.position.set(px, py, z); m.rotation.set(0, -Math.atan2(vz, 2.6 / (per * .62)) * .9, Math.atan2(pod.d[1], pod.d[0]), 'ZYX'); m.scale.setScalar(1.1);
+    }
+    if (!alive) pod = null;
+  }
+  // a whale surfaces beyond the boards, blows, and dives tail-first
+  nextWhale -= dt;
+  if (!whaleEv && nextWhale <= 0) { whaleEv = { t: 0, x: rnd(-6, 6), y: N / 2 + rnd(5, 9), dir: Math.random() < .5 ? 1 : -1 }; nextWhale = rnd(70, 110); }
+  whale.visible = false;
+  if (whaleEv) {
+    const w = whaleEv; w.t += dt; const t = w.t;
+    if (t > 9) { whaleEv = null; return; }
+    const rise = smooth(0, 2, t), dive = smooth(5.5, 8.5, t), x = w.x + w.dir * t * .45;
+    const z = -1.4 + rise * 1.25 - dive * 1.6, pitch = dive * .65 - (1 - rise) * .15;
+    whale.visible = true; whale.position.set(x, w.y, z + wave(x, w.y, time) * .5); whale.rotation.set(0, pitch, w.dir > 0 ? 0 : Math.PI, 'ZYX');
+    if (t > 2.4 && t < 3.6 && Math.random() < .8) { const hx = x + w.dir * 1.2; fx.add({ p: [hx, w.y, .4], v: [rnd(-.3, .3), rnd(-.3, .3), rnd(3, 4.5)], g: 4, life: rnd(.8, 1.3), s0: .15, s1: .55, c0: [.92, .96, 1, .8], c1: [.9, .95, 1, 0], k: 1.15, add: false }); }
+    if (Math.abs(t - .6) < dt || Math.abs(t - 7.8) < dt) fx.splash([x, w.y, 0], 1.6);
+  }
+}
 const shipGeoEmpty = [PLAYER, ENEMY].map(p => giraffeShip(p, false).geo());
 const planeMesh = (big, col, mark) => { const m = new T.Mesh(planeModel(big, col, mark).geo(), pwMat()); m.visible = false; scene.add(m); return m; };
 const bombers = [planeMesh(true, [.3, .3, .27], [.75, .12, .1]), planeMesh(true, [.3, .3, .27], [.75, .12, .1])];
@@ -1228,6 +1305,8 @@ function startBattle() {
   streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
+  battleT = 0; fireSpots.length = 0; introT = 0; wait = INTRO;
+  $('cineSub').textContent = mode === 'online' ? (NET.nick || 'أنت') + ' ضد ' + (NET.opp?.nick || 'الخصم') : 'أسطولك ضد أسطول العدو';
   setPhase('battle'); say(playerTurn ? 'بدأت المعركة! أطلق النار أولا' : 'بدأت المعركة! الخصم يبدأ', '#ffd36b');
 }
 const foe = () => mode === 'online' ? 'الخصم' : 'العدو';
@@ -1284,6 +1363,7 @@ function showImpact(target, x, y, out, vol, neutral) {
   const [px, py] = cellCenter(target, x, y), player = target === 1, who = player ? 0 : 1, c = coord(x, y), f = foe();
   if (!neutral) stats[who][0]++;
   pendingVis.delete(vkey(target, x, y));
+  if (out.r !== 'M') fireSpots.push({ b: target, x, y, t: time });
   if (!neutral) streak[who] = out.r === 'M' ? 0 : streak[who] + 1;
   if (!neutral && !out.aa) earn(who, out.r === 'M' ? COIN_MISS : out.r === 'H' ? COIN_HIT : COIN_HIT + COIN_SINK * LENS[out.ship.kind], [px, py, .6]);
   const hitKind = out.r === 'H' ? out.kind : out.r === 'S' ? out.ship.kind : -1;
@@ -1441,7 +1521,7 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 12;
+const GAME_V = 13;
 // Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
 // works from any network (mobile data included). Each player keeps one retained message holding
 // the same state object the claude.ai room's presence carries; the game connects to two brokers
@@ -1575,6 +1655,7 @@ canvas.addEventListener('pointerdown', e => {
   else if (e.button === 2 || e.button === 1) drag = { x: e.clientX, y: e.clientY };
 });
 addEventListener('pointerup', () => { drag = null; });
+$('cine').addEventListener('pointerdown', () => { initAudio(); if (introT < INTRO) { introT = INTRO; wait = Math.min(wait, .3); } });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('wheel', e => { if (phase === 'battle' || phase === 'over') { zoom = clamp(zoom * (e.deltaY < 0 ? .9 : 1 / .9), .55, 1.5); e.preventDefault(); } }, { passive: false });
 addEventListener('keydown', e => {
@@ -1635,7 +1716,7 @@ function update(dt) {
     if (i >= 0 && !boards[0].ships[i].sunk && !boards[0].ships[i].shield) { boards[0].ships[i].shield = true; inv.shield--; armed = null; play('ping', .7, 1.3); say('الدرع يحمي ' + NAMES[boards[0].ships[i].kind], '#7fc8ff'); uiDirty = true; }
     else play('click', .4);
   }
-  stepSwimmers(dt);
+  stepSwimmers(dt); stepLife(dt); stepIntro(dt);
   if (phase === 'battle') stepFlights(dt); else if (flights.length) { flights.forEach(f => { f.mesh.visible = false; }); flights = []; }
   if (bz && bz.fired && time - bz.t0 > 3) bz = null;
   if (phase === 'battle' && !busy() && !queue.length && wait <= 0 && !(bz && !bz.fired)) {
@@ -1723,13 +1804,61 @@ function desiredCam() {
   if (phase === 'battle') return [new T.Vector3(myTurn() ? .6 : -.6, -1.9 * SC(), 0), userYaw, clamp(1.0 + userPitch, .35, 1.45), d * zoom];
   return [new T.Vector3(0, -1, 0), userYaw + Math.sin(phaseT * .05) * .5, clamp(.7 + userPitch, .3, 1.4), d * zoom];
 }
+// time of day: the battle starts in the afternoon and turns to night over about five minutes
+const DAY_KEYS = [
+  { t: 0, fog: [.71, .77, .84], zen: [.2, .4, .74], sky: [.28, .46, .78], el: 17, dl: [1, .9, .74], dli: .95, hemi: 1, day: 1 },
+  { t: .45, fog: [.93, .62, .42], zen: [.24, .3, .58], sky: [.5, .45, .6], el: 3, dl: [1, .62, .36], dli: .85, hemi: .75, day: .8 },
+  { t: .7, fog: [.24, .2, .32], zen: [.06, .07, .18], sky: [.14, .14, .28], el: -6, dl: [.6, .55, .8], dli: .4, hemi: .55, day: .42 },
+  { t: 1, fog: [.06, .085, .15], zen: [.015, .03, .09], sky: [.07, .1, .2], el: -15, dl: [.6, .68, .95], dli: .45, hemi: .55, day: .32 }];
+let dayT = 0, battleT = 0, nightF = 0, introT = 99;
+const INTRO = 5.5;
+function stepIntro(dt) {
+  const on = phase === 'battle' && introT < INTRO; $('cine').hidden = !on; $('s-battle').style.visibility = on ? 'hidden' : '';
+  if (on) introT += dt;
+}
+function introCam() {
+  // a sweep past our own fleet, out over the enemy's waters, then up into the battle view
+  const u = clamp(introT / INTRO, 0, 1), e = ease(u), c0 = BC[0], c1 = BC[1];
+  const a = -1.9 + e * 2.6, r = lerp(N * .55, N * 1.15, e);
+  const tx = lerp(c0[0], (c0[0] + c1[0]) / 2, smooth(.2, .85, u)), ty = lerp(c0[1] - 1, 0, e);
+  return { pos: [tx + Math.cos(a) * r, ty + Math.sin(a) * r, lerp(.9, N * .9, smooth(.35, 1, u))], tgt: [tx, ty, lerp(.4, 0, e)] };
+}
+const MOON = new T.Vector3(-.45, .75, .48).normalize(), fireSpots = [];
+function applyDay(t) {
+  let a = DAY_KEYS[0], b = DAY_KEYS[DAY_KEYS.length - 1];
+  for (let i = 0; i < DAY_KEYS.length - 1; i++) if (t >= DAY_KEYS[i].t && t <= DAY_KEYS[i + 1].t) { a = DAY_KEYS[i]; b = DAY_KEYS[i + 1]; }
+  const u = b.t > a.t ? (t - a.t) / (b.t - a.t) : 0, L = (x, y) => x + (y - x) * u, LC = (x, y) => [L(x[0], y[0]), L(x[1], y[1]), L(x[2], y[2])];
+  FOG.setRGB(...LC(a.fog, b.fog)); scene.fog.color.copy(FOG);
+  sky.material.uniforms.uZen.value.setRGB(...LC(a.zen, b.zen)); water.material.uniforms.uSky.value.setRGB(...LC(a.sky, b.sky));
+  const el = L(a.el, b.el) * Math.PI / 180, az = Math.atan2(.85, .45);
+  SUN.set(Math.cos(el) * Math.cos(az), Math.cos(el) * Math.sin(az), Math.sin(el));
+  nightF = smooth(.5, .85, t);
+  sky.material.uniforms.uNight.value = nightF; water.material.uniforms.uDay.value = L(a.day, b.day);
+  dl.color.setRGB(...LC(a.dl, b.dl)); dl.intensity = L(a.dli, b.dli); dl.position.copy(nightF > .5 ? MOON : SUN).multiplyScalar(100);
+  hemi.intensity = L(a.hemi, b.hemi);
+}
+function updateFireLights() {
+  // the four most recent fires (and fresh explosions) light the ships and the sea at night
+  const lit = [];
+  for (let i = fireSpots.length - 1; i >= 0 && lit.length < 4; i--) { const f = fireSpots[i]; if (time - f.t > 1 && boards[f.b].shot[f.y]?.[f.x] !== 2) continue; lit.push(f); }
+  fireLights.forEach((l, i) => {
+    const f = lit[i], U = water.material.uniforms['uL' + i].value;
+    if (!f || nightF < .02) { l.intensity = 0; U.set(0, 0, 1, 0); return; }
+    const c = cellCenter(f.b, f.x, f.y), boom = Math.max(0, 1 - (time - f.t) * 1.5) * 3, flick = .8 + .2 * Math.sin(time * 17 + i * 3) * Math.sin(time * 7.3 + i);
+    l.position.set(c[0], c[1], .9); l.intensity = nightF * (1.4 * flick + boom); U.set(c[0], c[1], 1.6, nightF * (.55 * flick + boom * .4));
+  });
+}
 function render(dt) {
+  if (phase === 'battle') battleT += dt;
+  dayT = phase === 'battle' || phase === 'over' ? Math.min(1, battleT / 300) : 0;
+  applyDay(dayT); updateFireLights();
   const [tg, yaw, pitch, dist] = desiredCam(), k = 1 - Math.exp(-dt * 2.5);
   camT.lerp(tg, k); camYaw += (yaw - camYaw) * k; camPitch += (pitch - camPitch) * k; camDist += (dist - camDist) * k;
   if (![camT.x, camT.y, camT.z, camYaw, camPitch, camDist].every(Number.isFinite)) { camT.copy(tg); camYaw = yaw; camPitch = pitch; camDist = dist; }
   const sh = shake * shake * .5, jit = () => (Math.random() * 2 - 1) * sh;
   camera.position.set(camT.x + Math.sin(camYaw) * Math.cos(camPitch) * camDist + jit(), camT.y - Math.cos(camYaw) * Math.cos(camPitch) * camDist + jit(), camT.z + Math.sin(camPitch) * camDist + jit());
   camera.lookAt(camT.x + jit() * .5, camT.y + jit() * .5, camT.z);
+  if (phase === 'battle' && introT < INTRO) { const ic = introCam(); camera.position.set(...ic.pos); camera.lookAt(...ic.tgt); if (introT + dt >= INTRO) { camT.copy(tg); camYaw = yaw; camPitch = pitch; camDist = dist; } }
   camera.updateMatrixWorld();
   sky.position.copy(camera.position); sky.material.uniforms.uTime.value = time; water.material.uniforms.uTime.value = time;
   stains.forEach((st, b) => { st.r += (st.tr - st.r) * k * .5; st.s += (st.ts - st.s) * k; water.material.uniforms['uSt' + b].value.set(st.x, st.y, st.r, st.s); });
@@ -1808,7 +1937,7 @@ for (let b = 0; b < 2; b++) {
 }
 const projPx = (x, y) => { tmpV.set(x, y, GRID_Z).project(camera); return [(tmpV.x + 1) / 2 * W, (1 - tmpV.y) / 2 * H]; };
 function labels() {
-  const show = phase === 'place' || phase === 'battle', fs = [0, 1].map(b => { const a = projPx(...cellCenter(b, 0, 0)), c = projPx(...cellCenter(b, 1, 0)); return Math.round(clamp(Math.hypot(c[0] - a[0], c[1] - a[1]) * .62, 8, 16)) + 'px'; });
+  const show = (phase === 'place' || phase === 'battle') && !(phase === 'battle' && introT < INTRO), fs = [0, 1].map(b => { const a = projPx(...cellCenter(b, 0, 0)), c = projPx(...cellCenter(b, 1, 0)); return Math.round(clamp(Math.hypot(c[0] - a[0], c[1] - a[1]) * .62, 8, 16)) + 'px'; });
   for (const l of lab) {
     const on = show && !(l.i >= N) && !(phase === 'place' && l.b === 1) && !(l.kind === 't' && phase !== 'battle');
     if (!on) { if (l.s.style.display !== 'none') l.s.style.display = 'none'; continue; }
@@ -1955,6 +2084,7 @@ $('ui').addEventListener('click', e => {
     case 'bInv': { const k = b.dataset.pw; if (armed === k) armed = null; else if (k === 'plane') { if (planeReady(0)) armed = 'plane'; } else if (inv[k] > 0) { armed = k; if (k === 'bazooka' && !giraffeAlive(0)) { armed = null; say('سفينة الزرافات غرقت!', '#ff8a70'); } } pick1 = null; break; }
     case 'bPick': { const k = b.dataset.pw; inv[k]++; pendingPick = Math.max(0, pendingPick - 1); play('place', .8); say('حصلت على: ' + PW_NAME[k], '#ffd84d'); break; }
     case 'bUpd': location.replace(location.pathname + '?u=' + Date.now() + location.hash); break;
+    case 'bUpdDummy': break;
     case 'bSpy': cheat = !cheat; b.classList.toggle('on', cheat); break;
     case 'bView': viewMine = !viewMine; break;
     case 'bAgain': if (mode === 'online') netRematch(); else goPlace(); break;
