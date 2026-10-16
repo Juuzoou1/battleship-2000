@@ -1051,7 +1051,7 @@ const PW = ['double', 'radar', 'shield', 'bazooka'];
 let gmPref = store.get('bs-gm') === 'money' ? 'money' : 'classic', gameMode = 'classic', coins = [0, 0], shopOpen = false;
 const PRICES = { double: 60, radar: 35, shield: 50, bazooka: 90, plane: 45 };
 const SHOP = ['double', 'radar', 'shield', 'bazooka', 'plane'];
-const COIN_START = 20, COIN_MISS = 2, COIN_HIT = 15, COIN_SINK = 10;
+const COIN_START = 20, COIN_MISS = 10, COIN_HIT = 20, COIN_SINK = 10;
 function canBuy(k) {
   if (gameMode !== 'money' || phase !== 'battle' || coins[0] < PRICES[k]) return false;
   if (k === 'bazooka') return giraffeAlive(0);
@@ -1441,7 +1441,7 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 11;
+const GAME_V = 12;
 // Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
 // works from any network (mobile data included). Each player keeps one retained message holding
 // the same state object the claude.ai room's presence carries; the game connects to two brokers
