@@ -830,6 +830,11 @@ function tossOrange(fromB, toB, x, y) {
   flyingOranges.push({ mesh, from, to, t: 0, dur: .7 + dist * .035, arc: 1.5 + dist * .15, spin: rnd(4, 9) });
   play('rotate', .5, .7);
 }
+function playerToss() {
+  if (phase !== 'battle' || !orangeAlive(0) || time - lastToss < .8) return;
+  lastToss = time; const x = ri(N), y = ri(N); tossOrange(0, 1, x, y);
+  if (mode === 'online') { NET.og = (NET.og || 0) + 1; NET.ogc = e36(x) + e36(y); NET.push(); }
+}
 function stepOranges(dt) {
   for (const o of flyingOranges.slice()) {
     o.t += dt / o.dur; const t = Math.min(1, o.t), p = vadd(vadd(vmul(o.from, 1 - t), vmul(o.to, t)), [0, 0, o.arc * 4 * t * (1 - t)]);
@@ -1545,7 +1550,7 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 14;
+const GAME_V = 15;
 // Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
 // works from any network (mobile data included). Each player keeps one retained message holding
 // the same state object the claude.ai room's presence carries; the game connects to two brokers
@@ -1736,6 +1741,7 @@ function update(dt) {
       else play('click', .4);
     } else { const i = boards[0].shipAt(x, y); if (i >= 0) { const s = boards[0].ships.splice(i, 1)[0]; sel = s.kind; horiz = s.h; play('click', .6); uiDirty = true; } }
   }
+  if (phase === 'battle' && armed !== 'shield' && clicked && click && click[0] === 0) { const i = boards[0].shipAt(click[1], click[2]); if (i >= 0 && boards[0].ships[i].kind === 5 && !boards[0].ships[i].sunk) { clicked = false; playerToss(); } }
   if (phase === 'battle' && armed === 'shield' && clicked && click && click[0] === 0) {
     clicked = false; const i = boards[0].shipAt(click[1], click[2]);
     if (i >= 0 && !boards[0].ships[i].sunk && !boards[0].ships[i].shield) { boards[0].ships[i].shield = true; inv.shield--; armed = null; play('ping', .7, 1.3); say('الدرع يحمي ' + NAMES[boards[0].ships[i].kind], '#7fc8ff'); uiDirty = true; }
@@ -2058,7 +2064,6 @@ function ui() {
       if ($('shopList').innerHTML !== sh) $('shopList').innerHTML = sh;
     }
     let ih = '';
-    if (orangeAlive(0)) ih += `<button data-act="toss"><img src="${ICONS.orange}" alt=""><span>ارمِ برتقالة</span><b>مجانا</b></button>`;
     if (carrierAlive(0) && planesLeft[0] > 0) { const rd = planeReady(0); ih += `<button data-act="inv" data-pw="plane" class="${armed === 'plane' ? 'armed' : ''}" ${rd ? '' : 'disabled'}><img src="${ICONS.plane}" alt=""><span>${PW_NAME.plane}</span><b>×${planesLeft[0]}</b></button>`; }
     for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
     if (!PW.some(k => inv[k] > 0)) ih += money ? '<div class="none">اجمع العملات واشتر من المتجر</div>' : '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
@@ -2093,7 +2098,7 @@ $('ui').addEventListener('click', e => {
     case 'bSize': sizeIdx = (sizeIdx + 1) % 3; store.set('bs-size', sizeIdx); break;
     case 'bGm': gmPref = gmPref === 'money' ? 'classic' : 'money'; store.set('bs-gm', gmPref); break;
     case 'bShop': shopOpen = !shopOpen; break;
-    case 'bToss': if (phase === 'battle' && orangeAlive(0) && time - lastToss > .8) { lastToss = time; const x = ri(N), y = ri(N); tossOrange(0, 1, x, y); if (mode === 'online') { NET.og = (NET.og || 0) + 1; NET.ogc = e36(x) + e36(y); NET.push(); } } break;
+
     case 'bShopClose': shopOpen = false; break;
     case 'bBuy': buy(b.dataset.pw); break;
     case 'bSound': soundOn = !soundOn; store.set('bs-sound', soundOn); applyVolumes(); break;
