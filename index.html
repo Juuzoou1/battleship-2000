@@ -222,6 +222,7 @@ input:focus{outline:2px solid var(--amber)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script>
 'use strict';
 const T = THREE;
@@ -1388,11 +1389,58 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 8;
+const GAME_V = 9;
+// Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
+// works from any network (mobile data included). Each player keeps one retained message holding
+// the same state object the claude.ai room's presence carries; the game connects to two brokers
+// at once so one being down does not matter.
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+function mqttRoom() {
+  return {
+    async join(name) {
+      const base = 'bs2002ar/' + name + '/p/', me = 'm' + Math.random().toString(36).slice(2, 10);
+      const st = { mine: {}, others: new Map(), fns: [], clients: [] };
+      const peers = () => { const now = Date.now(), out = [{ peer: 'me', presence: st.mine, isMe: true, sameTab: true, updatedAt: now }]; for (const [id, r] of st.others) if (r.state && now - r.seen < 20000) out.push({ peer: id, presence: r.state, isMe: false, sameTab: false, kind: 'viewer', guest: false, by: null, updatedAt: r.updatedAt }); return out; };
+      const emit = () => { const ch = { peers: peers() }; st.fns.forEach(f => f(ch)); };
+      const pub = () => { const msg = JSON.stringify({ at: Date.now(), p: st.mine }); for (const c of st.clients) if (c.connected) c.publish(base + me, msg, { retain: true, qos: 0 }); };
+      await new Promise((res, rej) => {
+        let left = BROKERS.length, up = false;
+        const fail = () => { if (--left === 0 && !up) rej({ code: 'network' }); };
+        for (const url of BROKERS) {
+          let c; try { c = mqtt.connect(url, { clientId: me + st.clients.length, clean: true, connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 30 }); } catch (e) { fail(); continue; }
+          st.clients.push(c);
+          let settled = false; const to = setTimeout(() => { if (!settled) { settled = true; fail(); } }, 9000);
+          c.on('connect', () => { c.subscribe(base + '+'); pub(); if (!settled) { settled = true; clearTimeout(to); up = true; res(); } });
+          c.on('message', (topic, buf) => {
+            const id = topic.slice(base.length); if (id === me) return;
+            let d = null; try { d = JSON.parse(buf.toString() || 'null'); } catch (e) {}
+            if (!d || typeof d.p !== 'object' || !d.p) { st.others.delete(id); emit(); return; }
+            if (Date.now() - (d.at || 0) > 60000) return;
+            const r = st.others.get(id) || { json: '', at: 0, updatedAt: 0, seen: 0 };
+            if ((d.at || 0) < r.at) return;
+            r.at = d.at || 0; r.seen = Date.now();
+            const j = JSON.stringify(d.p); if (j !== r.json) { r.json = j; r.state = d.p; r.updatedAt = Date.now(); }
+            st.others.set(id, r); emit();
+          });
+          c.on('error', () => {});
+        }
+      });
+      const hb = setInterval(() => { pub(); emit(); }, 5000);
+      return {
+        name,
+        async presence(patch) { for (const k in patch) { if (patch[k] === null) delete st.mine[k]; else st.mine[k] = patch[k]; } pub(); },
+        peers, onPeers(f) { st.fns.push(f); setTimeout(() => f({ peers: peers() }), 0); return () => { const i = st.fns.indexOf(f); if (i >= 0) st.fns.splice(i, 1); }; },
+        connected: () => st.clients.some(c => c.connected),
+        async leave() { clearInterval(hb); for (const c of st.clients) { try { if (c.connected) c.publish(base + me, '', { retain: true }); c.end(false); } catch (e) {} } }
+      };
+    }
+  };
+}
 const STANDALONE = !(window.claude && typeof window.claude.use === 'function');
 async function roomApi() {
   if (NET.api !== undefined) return NET.api;
   if (!STANDALONE) { try { NET.api = await window.claude.use('room'); } catch (e) { NET.api = null; } }
+  else if (window.mqtt) NET.api = { async join(name) { try { return await mqttRoom().join(name); } catch (e) { if (window.Peer) return await peerRoom().join(name); throw e; } } };
   else NET.api = window.Peer ? peerRoom() : mockRoom();
   return NET.api;
 }
