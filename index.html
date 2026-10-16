@@ -100,7 +100,15 @@ input:focus{outline:2px solid var(--amber)}
   background:radial-gradient(circle at 35% 30%,#ff8a7a,#b3140a 60%,#4a0603);border:2px solid #2a0402;box-shadow:0 0 0 2px #0006,2px 2px 0 #0007}
 #bSpy.on{box-shadow:0 0 12px 3px #ff3b2b,0 0 0 2px #0006}
 #bView{position:absolute;top:70px;left:50%;transform:translateX(-50%);font-size:15px;padding:6px 14px}
-#inv{left:18px;top:96px;width:200px;padding:10px;--acc:var(--amber)}#inv .hdr{font-size:18px;margin-bottom:8px}
+#inv{left:18px;top:96px;width:200px;padding:10px;--acc:var(--amber)}
+#coinRow{display:flex;align-items:center;gap:8px;margin-bottom:8px}#coinRow img{width:34px;height:34px}#coinRow b{font:900 22px var(--f-ui);color:var(--amber);font-variant-numeric:tabular-nums}
+#coinRow button{margin-inline-start:auto;padding:4px 10px;font-size:15px}
+#shop{left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100vw - 24px));box-sizing:border-box;z-index:3;--acc:var(--amber)}
+#shopList{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+#shopList button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 6px;font-size:15px}
+#shopList button img{width:64px;height:64px;animation:bob 2s ease-in-out infinite}
+#shopList button b{color:var(--amber);display:flex;align-items:center;gap:4px}#shopList button b img{width:18px;height:18px;animation:none}
+.coinpop{position:absolute;left:0;top:0;font:900 22px var(--f-ui);color:#ffd84d;-webkit-text-stroke:1px #000;text-shadow:0 2px 0 #000;pointer-events:none}#inv .hdr{font-size:18px;margin-bottom:8px}
 #invList{display:flex;flex-direction:column;gap:6px}
 #invList button{display:flex;align-items:center;gap:8px;padding:4px 8px;font-size:14px;text-align:right}
 #invList button img{width:40px;height:40px;flex:none;animation:bob 2.4s ease-in-out infinite}
@@ -157,6 +165,7 @@ input:focus{outline:2px solid var(--amber)}
       <button id="bAI">معركة ضد الكمبيوتر</button>
       <button id="bOnline">العب مع صديق أونلاين</button>
       <div class="row"><button id="bLevel">الصعوبة: عادي</button><button id="bSize">الخريطة: وسط</button></div>
+      <button id="bGm">الطور: كلاسيكي</button>
       <div class="row"><button id="bSound">صوت: يعمل</button><button id="bMusic">موسيقى: تعمل</button></div>
     </div>
     <div id="foot">الإصدار 1.0 للمتصفح · موسيقى وأصوات مولّدة داخل اللعبة</div>
@@ -200,7 +209,8 @@ input:focus{outline:2px solid var(--amber)}
     <div class="panel fleet" id="fleetMe"><div class="hdr">أسطولك</div><ul></ul></div>
     <div class="panel fleet" id="fleetFoe"><div class="hdr">أسطول العدو</div><ul></ul></div>
     <div id="stats"></div>
-    <div class="panel" id="inv"><div class="hdr">قدراتك</div><div id="invList"></div></div>
+    <div class="panel" id="inv"><div class="hdr">قدراتك</div><div id="coinRow" hidden><img id="coinImg" alt=""><b id="coinN">0</b><button id="bShop">المتجر</button></div><div id="invList"></div></div>
+    <div class="panel col" id="shop" hidden><div class="hdr">المتجر</div><div class="dim center" id="shopCoins"></div><div id="shopList"></div><button id="bShopClose">إغلاق</button></div>
     <div class="panel col" id="pick" hidden><div class="hdr">باور أب! اختر قدرة واحدة</div><div id="pickList"></div></div>
     <div id="hint">عجلة الفأرة: تقريب · اسحب بالزر الأيمن: تدوير الكاميرا · C: إعادة الكاميرا · Esc: القائمة</div>
   </section>
@@ -602,6 +612,14 @@ function giraffeShip(p, animals = true) {
   if (animals) [[-.45, -.06, .25], [.0, .07, -.15], [.45, -.05, .1]].forEach(([x, y, r]) => m.add(gi, mul(MT(x, y, dh), MRZ(r), MS(1.3, 1.3, 1.3))));
   return m;
 }
+function coinModel() {
+  const m = new Model(), G = [1, .78, .2], D = [.85, .55, .08];
+  m.cyl([0, -.02, 0], [0, .02, 0], .2, .2, 24, D, true);
+  m.cyl([0, -.026, 0], [0, .026, 0], .15, .15, 24, G, true);
+  m.cuboid([-.02, -.03, -.09], [.02, .03, .07], D); m.cuboid([-.07, -.03, .04], [.07, .03, .065], D);
+  m.cyl([0, -.03, -.09], [0, .03, -.09], .06, .06, 12, D, false);
+  return m;
+}
 function shellModel() {
   const m = new Model();
   for (const y of [-.07, .07]) {
@@ -891,6 +909,7 @@ const SFX = {
   siren() { let ph = 0; return normalize(gen(3.2, t => { const f = 520 + 330 * Math.sin(Math.PI * t / 1.6 - Math.PI / 2) ** 2; ph += TAU * f / SR; return (Math.sin(ph) + .3 * Math.sin(2 * ph)) * Math.min(1, t / .3) * Math.min(1, (3.2 - t) / .5); }), .45); },
   plane() { const l = lpf(); let ph = 0; return normalize(gen(4.5, t => { const f = 62 * (1 + .08 * Math.tanh((2.2 - t) * 1.5)); ph += TAU * f / SR; let v = 0; for (let k = 1; k < 7; k++) v += Math.sin(k * ph) / k; return (v * (.6 + .4 * Math.sin(TAU * 21 * t)) + l(noiseF(), 400) * 2) * Math.min(1, t / 1.2) * Math.min(1, (4.5 - t) / 1.5); }), .5); },
   flak() { return normalize(gen(1.2, t => { const k = Math.floor(t / .09), u = t - k * .09; return (Math.random() * 2 - 1) * Math.exp(-u * 60) * (k % 2 ? .7 : 1); }), .5); },
+  coin() { return normalize(gen(.35, t => (Math.sin(TAU * 1568 * t) * (t < .08 ? 1 : 0) + Math.sin(TAU * 2093 * t) * (t >= .07 ? 1 : 0)) * Math.exp(-t * 9)), .45); },
   rocket() { const l = lpf(); return normalize(gen(1.2, t => l(noiseF(), 900 + 2500 * Math.exp(-t * 3)) * Math.min(1, t / .02) * Math.exp(-t * 1.8) + Math.sin(TAU * (90 - 40 * t) * t) * Math.exp(-t * 9) * .4), .7); },
   ping() { const one = t => t < 0 ? 0 : Math.sin(TAU * 1180 * t) * Math.min(1, t / .004) * Math.exp(-t * 3.5); return normalize(gen(2.2, t => one(t) + one(t - .5) * .3 + one(t - 1) * .1), .35); },
   win() { const ns = [[523.25, 0, .16], [659.25, .18, .16], [783.99, .36, .16], [1046.5, .54, 1.1], [783.99, .54, 1.1], [523.25, .54, 1.1]]; return normalize(gen(2.2, t => ns.reduce((s, [f, st, l]) => s + brassNote(f, t - st, l), 0)), .6); },
@@ -1028,6 +1047,36 @@ let camT = new T.Vector3(-6.5, 0, .5), camYaw = .6, camPitch = .1, camDist = 11,
 const pendingVis = new Set(), queue = [];
 let streak = [0, 0], pick1 = null, armed = null, pendingPick = 0, radar = null, bz = null, bubbles = [];
 const PW = ['double', 'radar', 'shield', 'bazooka'];
+// money mode: coins from shooting, spent in the shop
+let gmPref = store.get('bs-gm') === 'money' ? 'money' : 'classic', gameMode = 'classic', coins = [0, 0], shopOpen = false;
+const PRICES = { double: 60, radar: 35, shield: 50, bazooka: 90, plane: 45 };
+const SHOP = ['double', 'radar', 'shield', 'bazooka', 'plane'];
+const COIN_START = 20, COIN_MISS = 2, COIN_HIT = 15, COIN_SINK = 10;
+function canBuy(k) {
+  if (gameMode !== 'money' || phase !== 'battle' || coins[0] < PRICES[k]) return false;
+  if (k === 'bazooka') return giraffeAlive(0);
+  if (k === 'plane') return carrierAlive(0);
+  return true;
+}
+function buy(k) {
+  if (!canBuy(k)) { play('click', .4); return; }
+  coins[0] -= PRICES[k]; if (k === 'plane') planesLeft[0]++; else inv[k]++;
+  play('coin', .8); say('اشتريت: ' + (k === 'plane' ? 'طائرة إضافية' : PW_NAME[k]), '#ffd84d'); uiDirty = true;
+}
+function earn(who, n, at) {
+  if (gameMode !== 'money' || !n) return;
+  coins[who] += n; uiDirty = true;
+  if (who === 0) { play('coin', .5); const el = document.createElement('div'); el.className = 'coinpop'; el.textContent = '+' + n; $('labels').appendChild(el); coinPops.push({ el, p: at, t0: time }); }
+}
+let coinPops = [];
+function aiShop() {
+  if (gameMode !== 'money' || Math.random() < .5) return;
+  const opts = ['double', 'shield', ...(giraffeAlive(1) ? ['bazooka'] : []), ...(carrierAlive(1) ? ['plane'] : [])].filter(k => coins[1] >= PRICES[k]);
+  if (!opts.length) return;
+  const k = opts[ri(opts.length)]; coins[1] -= PRICES[k];
+  if (k === 'shield') { const a = boards[1].ships.filter(q => !q.sunk && !q.shield); if (a.length) a[ri(a.length)].shield = true; }
+  else if (k === 'plane') planesLeft[1]++; else aiInv[k]++;
+}
 const PW_NAME = { plane: 'طائرة الحاملة', double: 'ضربتين معا', radar: 'رادار', shield: 'درع', bazooka: 'بازوكا الزرافة' };
 const PW_DESC = { double: 'تطلق قذيفتين على هدفين في نفس الوقت', radar: 'رادار أخضر يكشف المربعات حول نقطة في مياه الخصم', shield: 'يحمي سفينة من ضربة واحدة والخصم يظنها خطأ', bazooka: 'زرافة تطلع ببازوكا وتصيب هدفا صحيحا' };
 let inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }, aiInv = { double: 0, shield: 0, bazooka: 0 };
@@ -1170,10 +1219,12 @@ const vkey = (b, x, y) => b * 100 + y * 10 + x;
 function say(text, col) { const m = $('msg'); m.textContent = text; m.style.color = col; m.classList.remove('show'); void m.offsetWidth; m.classList.add('show'); }
 function setPhase(p) { phase = p; phaseT = 0; for (const s of ['menu', 'lobby', 'place', 'battle', 'over']) $('s-' + s).hidden = s !== p && !(p === 'over' && s === 'battle'); music.want = p === 'over' ? null : p === 'place' ? 'brief' : p === 'battle' ? 'battle' : 'menu'; syncMusic(); uiDirty = true; }
 function goMenu() { setSize(10); netLeave(); mode = 'ai'; boards = [Board.random(), new Board()]; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('menu'); }
-function goPlace() { if (mode === 'ai' || !NET.room) setSize(SIZES[sizeIdx]); else if (!NET.opp || !SIZES.includes(NET.opp.n) || (NET.opp.j || 0) > NET.joined) setSize(SIZES[sizeIdx]); boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
+function goPlace() {
+  NET.gm = mode === 'online' && NET.opp && (NET.opp.gm === 'money' || NET.opp.gm === 'classic') && (NET.opp.j || 0) < NET.joined ? NET.opp.gm : gmPref; if (mode === 'ai' || !NET.room) setSize(SIZES[sizeIdx]); else if (!NET.opp || !SIZES.includes(NET.opp.n) || (NET.opp.j || 0) > NET.joined) setSize(SIZES[sizeIdx]); boards = [new Board(), new Board()]; sel = 0; horiz = true; shells = []; fx.ps = []; queue.length = 0; pendingVis.clear(); setPhase('place'); say('انشر أسطولك على الشبكة', '#9dffd9'); }
 function startBattle() {
   if (mode === 'ai') boards[1] = Board.random();
   flights.forEach(f => { f.mesh.visible = false; }); flights = []; raidDone = 0; planesLeft = [PLANES, PLANES];
+  gameMode = mode === 'online' ? (NET.gm || gmPref) : gmPref; coins = gameMode === 'money' ? [COIN_START, COIN_START] : [0, 0]; shopOpen = false; coinPops.forEach(c => c.el.remove()); coinPops = [];
   streak = [0, 0]; pick1 = null; armed = null; pendingPick = 0; radar = null; bz = null; inv = { double: 0, radar: 0, shield: 0, bazooka: 0 }; aiInv = { double: 0, shield: 0, bazooka: 0 }; stains.forEach(st => Object.assign(st, { r: 0, s: 0, tr: 0, ts: 0, n: 0 }));
   playerTurn = mode === 'ai' ? true : NET.first(); wait = .6; sel = null; userYaw = userPitch = 0; zoom = 1; fanfare = false; won = false;
   if (mode === 'ai') stats = [[0, 0], [0, 0]];
@@ -1234,6 +1285,7 @@ function showImpact(target, x, y, out, vol, neutral) {
   if (!neutral) stats[who][0]++;
   pendingVis.delete(vkey(target, x, y));
   if (!neutral) streak[who] = out.r === 'M' ? 0 : streak[who] + 1;
+  if (!neutral && !out.aa) earn(who, out.r === 'M' ? COIN_MISS : out.r === 'H' ? COIN_HIT : COIN_HIT + COIN_SINK * LENS[out.ship.kind], [px, py, .6]);
   const hitKind = out.r === 'H' ? out.kind : out.r === 'S' ? out.ship.kind : -1;
   if (hitKind === 5) orangeSpill(target, px, py, out.r === 'S');
   if (out.blocked && !player) { fx.splash([px, py, 0], 1); play('ping', .8, 1.4); for (let i = 0; i < 30; i++) { const d = rdir(); fx.add({ p: [px, py, .4], v: vmul(d, 2), life: .7, s0: .25, s1: .05, c0: [.4, .7, 1, 1], c1: [.2, .5, 1, 0], drag: 2 }); } say('الدرع صد ضربة ' + f + '!', '#7fc8ff'); }
@@ -1246,7 +1298,7 @@ function showImpact(target, x, y, out, vol, neutral) {
     fx.splash([px, py, 0], 1.2); play('boom', 1); play('sink', .9); shake = .6;
     say(player ? 'أغرقت ' + NAMES[s.kind] + ' ' + ADJ[s.kind] + '!' : 'أغرق ' + f + ' ' + NAMES[s.kind] + '!', player ? '#ffd640' : '#ff5040');
     if (s.kind === 6) { const gs = new Ship(s.kind, s.x, s.y, s.h); giraffeCry(target, gs); spawnSwimmers(target, gs); }
-    if (!neutral && streak[who] >= LENS[s.kind]) {
+    if (!neutral && gameMode !== 'money' && streak[who] >= LENS[s.kind]) {
       if (player) pendingPick++;
       else if (mode === 'ai') { const c = ['double', 'shield', ...(giraffeAlive(1) ? ['bazooka'] : [])][ri(giraffeAlive(1) ? 3 : 2)];
         if (c === 'shield') { const alive = boards[1].ships.filter(q => !q.sunk && !q.shield); if (alive.length) alive[ri(alive.length)].shield = true; } else aiInv[c]++; }
@@ -1277,7 +1329,7 @@ const NET = {
   save() { store.set(this.key(), { seat: this.seat, round: this.round, ready: this.ready, shots: this.shots, dbl: this.dbl, pl: this.pl, rb: this.rb, res: this.res, inc: this.inc, fleet: boards[0].ships.map(s => [s.kind, s.x, s.y, s.h ? 1 : 0]) }); },
   push() {
     if (!this.room) return;
-    const p = { v: GAME_V, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
+    const p = { v: GAME_V, seat: this.seat, nick: this.nick.slice(0, 20), round: this.round, ready: this.ready, n: N, gm: NET.gm || gmPref, j: NET.joined, shots: this.shots.map(([x, y]) => e36(x) + e36(y)).join(''), d: this.dbl.join(','), pl: this.pl.join(','), rb: this.rb, res: this.res.join(''), k: boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join(''), fleet: this.reveal ? boards[0].ships.map(s => '' + s.kind + e36(s.x) + e36(s.y) + (s.h ? 1 : 0)).join('') : null };
     this.room.presence(p).catch(() => {}); this.save();
   },
   oppState() {
@@ -1389,7 +1441,7 @@ function peerRoom() {
     }
   };
 }
-const GAME_V = 10;
+const GAME_V = 11;
 // Standalone copy: both players talk through public MQTT brokers over secure WebSockets, so it
 // works from any network (mobile data included). Each player keeps one retained message holding
 // the same state object the claude.ai room's presence carries; the game connects to two brokers
@@ -1486,6 +1538,7 @@ function netTick() {
   if (mode !== 'online' || !NET.room) return;
   NET.opp = NET.oppState(); uiDirty = true;
   if (!NET.same()) return;
+  if (phase === 'place' && (NET.opp.gm === 'money' || NET.opp.gm === 'classic') && NET.opp.gm !== NET.gm && (NET.opp.j || 0) < NET.joined) { NET.gm = NET.opp.gm; NET.push(); say('الطور: ' + (NET.gm === 'money' ? 'الفلوس والمتجر' : 'كلاسيكي') + ' (من صديقك)', '#9dffd9'); }
   if (phase === 'place' && SIZES.includes(NET.opp.n) && NET.opp.n !== N && (NET.opp.j || 0) < NET.joined) {
     setSize(NET.opp.n); NET.ready = false; boards = [new Board(), new Board()]; sel = 0; NET.push(); say('حجم الخريطة: ' + SIZE_NAMES[SIZES.indexOf(N)] + ' (من صديقك)', '#9dffd9');
   }
@@ -1637,6 +1690,7 @@ function update(dt) {
         }
       }
     } else if (mode === 'ai') {
+      aiShop();
       const [x, y] = aiTarget(boards[0], level);
       const open = boards[0].ships.flatMap(q => q.sunk ? [] : q.cells()).filter(([cx, cy]) => !boards[0].shot[cy][cx]);
       if (planeReady(1) && Math.random() < .2 && launchCarrierPlane(1)) {}
@@ -1771,6 +1825,11 @@ function labels() {
     tmpV.set(bb.p[0], bb.p[1], bb.p[2] + (time - bb.born) * .25).project(camera);
     bb.el.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-100%)`;
   }
+  for (const c of coinPops.slice()) {
+    const a = time - c.t0; if (a > 1.4) { c.el.remove(); coinPops.splice(coinPops.indexOf(c), 1); continue; }
+    tmpV.set(c.p[0], c.p[1], c.p[2] + a * .9).project(camera);
+    c.el.style.opacity = String(Math.min(1, 2.5 - a * 1.8)); c.el.style.transform = `translate(${((tmpV.x + 1) / 2 * W).toFixed(1)}px,${((1 - tmpV.y) / 2 * H).toFixed(1)}px) translate(-50%,-50%)`;
+  }
   const tip = $('tip'), showTip = hover && ((phase === 'battle' && hover[0] === 1 && myTurn()) || (phase === 'place' && hover[0] === 0));
   tip.hidden = !showTip || !!touchAim || (pointer.x >= 0 && matchMedia('(pointer:coarse)').matches);
   if (showTip) { const t = coord(hover[1], hover[2]); if (tip.textContent !== t) tip.textContent = t; tip.style.left = (pointer.x + 18) + 'px'; tip.style.top = (pointer.y + 14) + 'px'; }
@@ -1787,8 +1846,9 @@ function fleetList(ul, b) {
   if (ul.innerHTML !== html) ul.innerHTML = html;
 }
 function ui() {
-  const sig = [phase, mode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), flights.length, planesLeft[0], carrierAlive(0), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
+  const sig = [phase, mode, coins.join(), shopOpen, gameMode, uiDirty, sel, horiz, shells.map(q => q.t >= 1 ? 1 : 0).join(''), flights.length, planesLeft[0], carrierAlive(0), JSON.stringify(inv), armed, pendingPick, giraffeAlive(0), pick1 ? pick1.join() : '', myTurn(), queue.length, soundOn, musicOn, level, NET.ready, NET.opp ? NET.opp.ready + '/' + NET.opp.round + '/' + NET.opp.nick : '-', boards[0].ships.length, phaseT > 1].join('|');
   if (sig === lastUi && !uiDirty) return; lastUi = sig; uiDirty = false;
+  setText('bGm', gmPref === 'money' ? 'الطور: الفلوس والمتجر' : 'الطور: كلاسيكي');
   setText('bLevel', 'الصعوبة: ' + LEVELS[level]); setText('bSize', 'الخريطة: ' + SIZE_NAMES[sizeIdx]); setText('bSound', soundOn ? 'صوت: يعمل' : 'صوت: مطفأ'); setText('bMusic', musicOn ? 'موسيقى: تعمل' : 'موسيقى: مطفأة');
   if (phase === 'place') {
     const list = $('shipList'); let html = '';
@@ -1833,12 +1893,21 @@ function ui() {
     $('bSpy').hidden = !isCaptain() || phase !== 'battle';
     $('bView').hidden = phase !== 'battle' || W / H >= 1.15; setText('bView', viewMine ? 'شبكة ' + foe() : 'شبكتي');
     setText('banner', t); $('banner').style.color = col;
+    const money = gameMode === 'money';
+    $('coinRow').hidden = !money;
+    if (money) { if ($('coinImg').getAttribute('src') !== ICONS.coin) $('coinImg').src = ICONS.coin; setText('coinN', String(coins[0])); }
+    $('shop').hidden = !(money && shopOpen && phase === 'battle');
+    if (money && shopOpen) {
+      setText('shopCoins', 'عندك ' + coins[0] + ' عملة');
+      let sh = ''; for (const k of SHOP) sh += `<button data-act="buy" data-pw="${k}" ${canBuy(k) ? '' : 'disabled'}><img src="${ICONS[k]}" alt=""><span>${k === 'plane' ? 'طائرة إضافية' : PW_NAME[k]}</span><b><img src="${ICONS.coin}" alt="">${PRICES[k]}</b></button>`;
+      if ($('shopList').innerHTML !== sh) $('shopList').innerHTML = sh;
+    }
     let ih = '';
     if (carrierAlive(0) && planesLeft[0] > 0) { const rd = planeReady(0); ih += `<button data-act="inv" data-pw="plane" class="${armed === 'plane' ? 'armed' : ''}" ${rd ? '' : 'disabled'}><img src="${ICONS.plane}" alt=""><span>${PW_NAME.plane}</span><b>×${planesLeft[0]}</b></button>`; }
     for (const k of PW) if (inv[k] > 0) ih += `<button data-act="inv" data-pw="${k}" class="${armed === k ? 'armed' : ''}" ${k === 'bazooka' && !giraffeAlive(0) ? 'disabled' : ''}><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><b>×${inv[k]}</b></button>`;
-    if (!PW.some(k => inv[k] > 0)) ih += '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
+    if (!PW.some(k => inv[k] > 0)) ih += money ? '<div class="none">اجمع العملات واشتر من المتجر</div>' : '<div class="none">اغرق سفينة بضربات متتالية لتحصل على قدرة</div>';
     if ($('invList').innerHTML !== ih) $('invList').innerHTML = ih;
-    $('inv').hidden = phase !== 'battle' || (W <= 760 && !PW.some(k => inv[k] > 0) && !carrierAlive(0));
+    $('inv').hidden = phase !== 'battle' || (W <= 760 && !money && !PW.some(k => inv[k] > 0) && !carrierAlive(0));
     $('pick').hidden = !(pendingPick > 0 && phase === 'battle');
     if (pendingPick > 0) { let ph = ''; for (const k of PW) { if (k === 'bazooka' && !giraffeAlive(0)) continue; ph += `<button data-act="pick" data-pw="${k}"><img src="${ICONS[k]}" alt=""><span>${PW_NAME[k]}</span><small>${PW_DESC[k]}</small></button>`; } if ($('pickList').innerHTML !== ph) $('pickList').innerHTML = ph; } $('banner').hidden = $('hint').hidden = phase === 'over';
   }
@@ -1848,7 +1917,7 @@ function ui() {
     $('overPanel').style.setProperty('--acc', won ? '#ffd84d' : '#ff5a45');
     setText('overSub', won ? 'تم تدمير أسطول ' + foe() + ' بالكامل' : 'لقد غرق أسطولك بالكامل');
     const a = (s, h) => s ? Math.round(h * 100 / s) : 0;
-    $('overStats').innerHTML = `<span style="color:#8dffd2">طلقاتك ${stats[0][0]} · إصاباتك ${stats[0][1]} · الدقة ${a(...stats[0])}%</span><span style="color:#ffb595">طلقات ${foe()} ${stats[1][0]} · إصاباته ${stats[1][1]} · الدقة ${a(...stats[1])}%</span>`;
+    $('overStats').innerHTML = (gameMode === 'money' ? `<span style="color:#ffd84d">عملاتك المتبقية ${coins[0]}</span>` : '') + `<span style="color:#8dffd2">طلقاتك ${stats[0][0]} · إصاباتك ${stats[0][1]} · الدقة ${a(...stats[0])}%</span><span style="color:#ffb595">طلقات ${foe()} ${stats[1][0]} · إصاباته ${stats[1][1]} · الدقة ${a(...stats[1])}%</span>`;
     const again = $('bAgain'), o = NET.opp;
     if (mode === 'online') { again.textContent = 'إعادة المباراة'; again.disabled = false; setText('overNote', o && o.round > NET.round ? (o.nick || 'الخصم') + ' يريد إعادة المباراة!' : ''); }
     else { again.textContent = 'معركة جديدة'; setText('overNote', ''); }
@@ -1858,7 +1927,7 @@ function ui() {
 // ================================================================ buttons
 $('ui').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
-  if (b.dataset.act) { initAudio(); play('click', .6); switch (b.dataset.act) { case 'inv': b.id = 'bInv'; break; case 'pick': b.id = 'bPick'; break; } }
+  if (b.dataset.act) { initAudio(); play('click', .6); switch (b.dataset.act) { case 'inv': b.id = 'bInv'; break; case 'pick': b.id = 'bPick'; break; case 'buy': b.id = 'bBuy'; break; } }
   initAudio(); play('click', .6);
   if (b.dataset.ship !== undefined) { const k = +b.dataset.ship, i = boards[0].ships.findIndex(s => s.kind === k); if (i >= 0) { horiz = boards[0].ships[i].h; boards[0].ships.splice(i, 1); } sel = k; uiDirty = true; return; }
   switch (b.id) {
@@ -1866,6 +1935,10 @@ $('ui').addEventListener('click', e => {
     case 'bOnline': setPhase('lobby'); lobbyStatus(''); break;
     case 'bLevel': level = (level + 1) % 3; store.set('bs-level', level); break;
     case 'bSize': sizeIdx = (sizeIdx + 1) % 3; store.set('bs-size', sizeIdx); break;
+    case 'bGm': gmPref = gmPref === 'money' ? 'classic' : 'money'; store.set('bs-gm', gmPref); break;
+    case 'bShop': shopOpen = !shopOpen; break;
+    case 'bShopClose': shopOpen = false; break;
+    case 'bBuy': buy(b.dataset.pw); break;
     case 'bSound': soundOn = !soundOn; store.set('bs-sound', soundOn); applyVolumes(); break;
     case 'bMusic': musicOn = !musicOn; store.set('bs-music', musicOn); applyVolumes(); break;
     case 'bJoin': netJoin($('code').value); break;
@@ -1922,6 +1995,7 @@ function renderIcon(model, yaw, pitch) {
 }
 try {
   ICONS.double = renderIcon(shellModel(), .5, .35); ICONS.radar = renderIcon(radarModel(), .7, .3);
+  ICONS.coin = renderIcon(coinModel(), .35, .15);
   ICONS.shield = renderIcon(shieldModel(), .25, .1); ICONS.plane = renderIcon(planeModel(false, [.32, .45, .7], [.95, .95, .95]), .6, .45); ICONS.bazooka = renderIcon(bazookaGiraffe(), 1.35, .15);
 } catch (e) { console.warn('icons', e); }
 
